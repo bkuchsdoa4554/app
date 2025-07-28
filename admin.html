@@ -653,6 +653,9 @@
                 <button class="nav-item" onclick="showSection('analytics')">
                     <i class="fas fa-chart-bar"></i> Analytics
                 </button>
+                <button class="nav-item" onclick="showSection('balances')">
+                    <i class="fas fa-coins"></i> Manage Balances
+                </button>
                 <button class="nav-item" onclick="showSection('settings')">
                     <i class="fas fa-cog"></i> Settings
                 </button>
@@ -943,6 +946,64 @@
                 </div>
             </section>
 
+            <!-- Balance Management Section -->
+            <section id="balances" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Balance Management</h2>
+                    <p class="section-subtitle">Add or update user wallet balances</p>
+                </div>
+
+                <div class="search-filters">
+                    <input type="text" class="search-input" placeholder="Search users..." id="balanceUserSearch">
+                    <button class="btn btn-primary" onclick="showAddBalanceModal()">
+                        <i class="fas fa-plus-circle"></i> Add Balance
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Player Name</th>
+                                    <th>Email</th>
+                                    <th>Current Balance</th>
+                                    <th>Last Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="balanceUsersTable">
+                                <!-- User balance data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Balance History -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Balance Updates</h3>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>Player</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>New Balance</th>
+                                    <th>Admin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="balanceHistoryTable">
+                                <!-- Balance history will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <!-- Settings Section -->
             <section id="settings" class="content-section">
                 <div class="section-header">
@@ -1119,6 +1180,54 @@
         </div>
     </div>
 
+    <!-- Add/Update Balance Modal -->
+    <div id="addBalanceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Manage User Balance</h3>
+                <button class="close-button" onclick="closeModal('addBalanceModal')">&times;</button>
+            </div>
+            <form id="addBalanceForm">
+                <div class="form-group">
+                    <label class="form-label">Select User</label>
+                    <select class="form-select" id="balanceUserId" required>
+                        <option value="">Choose a user...</option>
+                        <!-- Users will be populated here -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Current Balance</label>
+                    <input type="text" class="form-input" id="currentBalance" readonly style="background: #f3f4f6;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Action Type</label>
+                    <select class="form-select" id="balanceActionType" required onchange="updateBalanceActionUI()">
+                        <option value="">Select action...</option>
+                        <option value="add">Add Balance</option>
+                        <option value="subtract">Subtract Balance</option>
+                        <option value="set">Set Balance</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" id="amountLabel">Amount (Rs.)</label>
+                    <input type="number" class="form-input" id="balanceAmount" min="0" step="1" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason/Note</label>
+                    <input type="text" class="form-input" id="balanceReason" placeholder="e.g., Manual top-up, Bonus, Correction" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">New Balance Preview</label>
+                    <input type="text" class="form-input" id="newBalancePreview" readonly style="background: #f0fdf4; color: #16a34a; font-weight: bold;">
+                </div>
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addBalanceModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Balance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
@@ -1188,6 +1297,8 @@
         let players = [];
         let payments = [];
         let recentActivity = [];
+        let balanceHistory = [];
+        let currentAdmin = null;
 
         // Initialize admin panel
         document.addEventListener('DOMContentLoaded', function() {
@@ -1200,10 +1311,14 @@
                     loadTournaments(),
                     loadPlayers(),
                     loadPayments(),
-                    loadRecentActivity()
+                    loadRecentActivity(),
+                    loadBalanceHistory()
                 ]);
                 updateMetrics();
                 initializeCharts();
+                populateBalanceUsers();
+                displayBalanceUsers();
+                displayBalanceHistory();
             } catch (error) {
                 console.error('Error loading data:', error);
             }
@@ -1234,6 +1349,7 @@
                 players: 'Player Management',
                 payments: 'Payment Management',
                 analytics: 'Analytics & Reports',
+                balances: 'Balance Management',
                 settings: 'Settings'
             };
             document.getElementById('pageTitle').textContent = titles[sectionName] || 'Dashboard';
@@ -1705,6 +1821,10 @@
             filterTable('paymentsTable', e.target.value, 0);
         });
 
+        document.getElementById('balanceUserSearch').addEventListener('input', function(e) {
+            filterTable('balanceUsersTable', e.target.value, 0);
+        });
+
         function filterTable(tableId, searchTerm, columnIndex) {
             const table = document.getElementById(tableId);
             const rows = table.getElementsByTagName('tr');
@@ -1885,6 +2005,279 @@
             }
         }
 
+        // Balance Management Functions
+        async function loadBalanceHistory() {
+            try {
+                const snapshot = await db.collection('balanceHistory').orderBy('timestamp', 'desc').limit(50).get();
+                balanceHistory = [];
+                snapshot.forEach(doc => {
+                    balanceHistory.push({ id: doc.id, ...doc.data() });
+                });
+            } catch (error) {
+                console.error('Error loading balance history:', error);
+            }
+        }
+
+        function populateBalanceUsers() {
+            const select = document.getElementById('balanceUserId');
+            select.innerHTML = '<option value="">Choose a user...</option>';
+            
+            players.forEach(player => {
+                const option = document.createElement('option');
+                option.value = player.id;
+                option.textContent = `${player.name || 'Unknown'} (${player.email || 'No email'})`;
+                option.dataset.balance = player.walletBalance || 0;
+                select.appendChild(option);
+            });
+        }
+
+        function displayBalanceUsers() {
+            const tbody = document.getElementById('balanceUsersTable');
+            tbody.innerHTML = '';
+
+            if (players.length === 0) {
+                displayEmptyTable('balanceUsersTable', 'No users found');
+                return;
+            }
+
+            players.forEach(player => {
+                const row = document.createElement('tr');
+                const lastUpdated = player.lastBalanceUpdate ? 
+                    new Date(player.lastBalanceUpdate).toLocaleDateString() : 'Never';
+                
+                row.innerHTML = `
+                    <td>${player.name || 'Unknown'}</td>
+                    <td>${player.email || 'N/A'}</td>
+                    <td style="font-weight: bold; color: var(--accent-blue);">Rs. ${(player.walletBalance || 0).toLocaleString()}</td>
+                    <td>${lastUpdated}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-primary" onclick="editUserBalance('${player.id}')">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayBalanceHistory() {
+            const tbody = document.getElementById('balanceHistoryTable');
+            tbody.innerHTML = '';
+
+            if (balanceHistory.length === 0) {
+                displayEmptyTable('balanceHistoryTable', 'No balance history found');
+                return;
+            }
+
+            balanceHistory.forEach(entry => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(entry.timestamp).toLocaleString()}</td>
+                    <td>${entry.playerName || 'Unknown'}</td>
+                    <td>
+                        <span class="status-badge ${entry.type === 'add' ? 'status-approved' : entry.type === 'subtract' ? 'status-rejected' : 'status-pending'}">
+                            ${entry.type.toUpperCase()}
+                        </span>
+                    </td>
+                    <td style="color: ${entry.type === 'add' ? 'var(--accent-green)' : entry.type === 'subtract' ? 'var(--accent-red)' : 'var(--accent-blue)'};">
+                        ${entry.type === 'add' ? '+' : entry.type === 'subtract' ? '-' : ''}Rs. ${entry.amount.toLocaleString()}
+                    </td>
+                    <td style="font-weight: bold;">Rs. ${entry.newBalance.toLocaleString()}</td>
+                    <td>${entry.adminName || 'System'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function showAddBalanceModal() {
+            populateBalanceUsers();
+            document.getElementById('addBalanceModal').classList.add('active');
+            resetBalanceForm();
+        }
+
+        function editUserBalance(userId) {
+            const user = players.find(p => p.id === userId);
+            if (user) {
+                showAddBalanceModal();
+                document.getElementById('balanceUserId').value = userId;
+                document.getElementById('currentBalance').value = `Rs. ${(user.walletBalance || 0).toLocaleString()}`;
+            }
+        }
+
+        function resetBalanceForm() {
+            document.getElementById('addBalanceForm').reset();
+            document.getElementById('currentBalance').value = '';
+            document.getElementById('newBalancePreview').value = '';
+            document.getElementById('amountLabel').textContent = 'Amount (Rs.)';
+        }
+
+        function updateBalanceActionUI() {
+            const actionType = document.getElementById('balanceActionType').value;
+            const amountLabel = document.getElementById('amountLabel');
+            
+            switch (actionType) {
+                case 'add':
+                    amountLabel.textContent = 'Amount to Add (Rs.)';
+                    break;
+                case 'subtract':
+                    amountLabel.textContent = 'Amount to Subtract (Rs.)';
+                    break;
+                case 'set':
+                    amountLabel.textContent = 'New Balance Amount (Rs.)';
+                    break;
+                default:
+                    amountLabel.textContent = 'Amount (Rs.)';
+            }
+            
+            updateBalancePreview();
+        }
+
+        function updateBalancePreview() {
+            const userId = document.getElementById('balanceUserId').value;
+            const actionType = document.getElementById('balanceActionType').value;
+            const amount = parseFloat(document.getElementById('balanceAmount').value) || 0;
+            
+            if (!userId || !actionType) {
+                document.getElementById('newBalancePreview').value = '';
+                return;
+            }
+            
+            const user = players.find(p => p.id === userId);
+            if (!user) return;
+            
+            const currentBalance = user.walletBalance || 0;
+            let newBalance = currentBalance;
+            
+            switch (actionType) {
+                case 'add':
+                    newBalance = currentBalance + amount;
+                    break;
+                case 'subtract':
+                    newBalance = Math.max(0, currentBalance - amount);
+                    break;
+                case 'set':
+                    newBalance = amount;
+                    break;
+            }
+            
+            document.getElementById('newBalancePreview').value = `Rs. ${newBalance.toLocaleString()}`;
+        }
+
+        // Event listeners for balance form
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add event listeners after DOM is loaded
+            setTimeout(() => {
+                const userSelect = document.getElementById('balanceUserId');
+                const amountInput = document.getElementById('balanceAmount');
+                
+                if (userSelect) {
+                    userSelect.addEventListener('change', function() {
+                        const selectedOption = this.options[this.selectedIndex];
+                        if (selectedOption && selectedOption.dataset.balance) {
+                            document.getElementById('currentBalance').value = `Rs. ${parseInt(selectedOption.dataset.balance).toLocaleString()}`;
+                            updateBalancePreview();
+                        }
+                    });
+                }
+                
+                if (amountInput) {
+                    amountInput.addEventListener('input', updateBalancePreview);
+                }
+            }, 1000);
+        });
+
+        // Handle balance form submission
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                const balanceForm = document.getElementById('addBalanceForm');
+                if (balanceForm) {
+                    balanceForm.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+                        
+                        const userId = document.getElementById('balanceUserId').value;
+                        const actionType = document.getElementById('balanceActionType').value;
+                        const amount = parseFloat(document.getElementById('balanceAmount').value);
+                        const reason = document.getElementById('balanceReason').value;
+                        
+                        if (!userId || !actionType || amount < 0 || !reason) {
+                            alert('Please fill all fields correctly');
+                            return;
+                        }
+                        
+                        try {
+                            const user = players.find(p => p.id === userId);
+                            if (!user) {
+                                alert('User not found');
+                                return;
+                            }
+                            
+                            const currentBalance = user.walletBalance || 0;
+                            let newBalance = currentBalance;
+                            
+                            switch (actionType) {
+                                case 'add':
+                                    newBalance = currentBalance + amount;
+                                    break;
+                                case 'subtract':
+                                    newBalance = Math.max(0, currentBalance - amount);
+                                    break;
+                                case 'set':
+                                    newBalance = amount;
+                                    break;
+                            }
+                            
+                            // Update user balance in Firestore
+                            await db.collection('users').doc(userId).update({
+                                walletBalance: newBalance,
+                                lastBalanceUpdate: Date.now()
+                            });
+                            
+                            // Add to balance history
+                            await db.collection('balanceHistory').add({
+                                userId: userId,
+                                playerName: user.name,
+                                playerEmail: user.email,
+                                type: actionType,
+                                amount: amount,
+                                previousBalance: currentBalance,
+                                newBalance: newBalance,
+                                reason: reason,
+                                adminId: auth.currentUser.uid,
+                                adminName: auth.currentUser.displayName || auth.currentUser.email,
+                                timestamp: Date.now()
+                            });
+                            
+                            // Add activity log
+                            await addActivity(
+                                `Balance ${actionType}`,
+                                user.name,
+                                actionType === 'set' ? newBalance : amount
+                            );
+                            
+                            // Update local data
+                            user.walletBalance = newBalance;
+                            user.lastBalanceUpdate = Date.now();
+                            
+                            // Refresh displays
+                            displayBalanceUsers();
+                            await loadBalanceHistory();
+                            displayBalanceHistory();
+                            updateMetrics();
+                            
+                            closeModal('addBalanceModal');
+                            alert(`Balance updated successfully!\nUser: ${user.name}\nNew Balance: Rs. ${newBalance.toLocaleString()}`);
+                            
+                        } catch (error) {
+                            console.error('Error updating balance:', error);
+                            alert('Failed to update balance. Please try again.');
+                        }
+                    });
+                }
+            }, 1000);
+        });
+
         // Sign out function
         async function signOut() {
             try {
@@ -1912,6 +2305,9 @@
         window.viewPlayer = viewPlayer;
         window.banPlayer = banPlayer;
         window.signInAsAdmin = signInAsAdmin;
+        window.showAddBalanceModal = showAddBalanceModal;
+        window.editUserBalance = editUserBalance;
+        window.updateBalanceActionUI = updateBalanceActionUI;
     </script>
 </body>
 </html>
