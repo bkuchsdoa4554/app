@@ -1136,10 +1136,51 @@
             appId: "your-app-id"
         };
 
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        const auth = firebase.auth();
+        // Check if Firebase is properly configured
+        function checkFirebaseConfig() {
+            if (firebaseConfig.apiKey === "your-api-key" || !firebaseConfig.apiKey) {
+                document.body.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-primary); flex-direction: column; text-align: center; padding: 2rem; max-width: 800px; margin: 0 auto;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 4rem; color: var(--accent-red); margin-bottom: 2rem;"></i>
+                        <h1 style="color: var(--text-dark); margin-bottom: 1rem;">Firebase Configuration Required</h1>
+                        <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: left;">
+                            <h3 style="margin-bottom: 1rem; color: var(--accent-blue);">Admin Setup Instructions:</h3>
+                            <ol style="line-height: 1.8; color: var(--text-dark);">
+                                <li>Complete Firebase setup (same as user app)</li>
+                                <li>Create an <strong>admins</strong> collection in Firestore</li>
+                                <li>Add a document with your Google user ID as the document ID</li>
+                                <li>Set the document data: <code>{ "role": "admin" }</code></li>
+                                <li>Replace the firebaseConfig in this HTML file</li>
+                            </ol>
+                            <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                                <strong>Security Rules:</strong><br>
+                                <code style="font-size: 0.9rem;">
+                                // In Firestore Rules<br>
+                                match /admins/{userId} {<br>
+                                &nbsp;&nbsp;allow read: if request.auth.uid == userId;<br>
+                                }
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return false;
+            }
+            return true;
+        }
+
+        // Initialize Firebase only if configured
+        let db, auth;
+        if (checkFirebaseConfig()) {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                auth = firebase.auth();
+            } catch (error) {
+                console.error('Firebase initialization error:', error);
+                alert('Firebase configuration error: ' + error.message);
+            }
+        }
 
         // Data arrays - will be populated from Firebase
         let tournaments = [];
@@ -1752,10 +1793,35 @@
         async function signInAsAdmin() {
             try {
                 const provider = new firebase.auth.GoogleAuthProvider();
-                await auth.signInWithPopup(provider);
+                provider.addScope('email');
+                provider.addScope('profile');
+                
+                const result = await auth.signInWithPopup(provider);
+                console.log('Admin sign-in successful:', result.user);
+                
+                // Don't reload immediately, let the auth state change handler manage the flow
             } catch (error) {
                 console.error('Error signing in:', error);
-                alert('Failed to sign in. Please try again.');
+                
+                // More specific error messages
+                let errorMessage = 'Failed to sign in. ';
+                switch (error.code) {
+                    case 'auth/popup-closed-by-user':
+                        errorMessage += 'Sign-in popup was closed. Please try again.';
+                        break;
+                    case 'auth/popup-blocked':
+                        errorMessage += 'Sign-in popup was blocked by your browser. Please allow popups and try again.';
+                        break;
+                    case 'auth/network-request-failed':
+                        errorMessage += 'Network error. Please check your internet connection.';
+                        break;
+                    case 'auth/invalid-api-key':
+                        errorMessage += 'Invalid Firebase configuration. Please check your API key.';
+                        break;
+                    default:
+                        errorMessage += `Error: ${error.message}`;
+                }
+                alert(errorMessage);
             }
         }
 
