@@ -833,7 +833,7 @@
 
                 <!-- Quick Actions -->
                 <div class="quick-actions">
-                    <div class="quick-action" onclick="showCreateTournamentModal()">
+                    <div class="quick-action" onclick="createNewTournament()">
                         <div class="quick-action-icon">
                             <i class="fas fa-plus-circle"></i>
                         </div>
@@ -894,7 +894,7 @@
                         <option value="upcoming">Upcoming</option>
                         <option value="completed">Completed</option>
                     </select>
-                    <button class="btn btn-primary" onclick="showCreateTournamentModal()">
+                    <button class="btn btn-primary" onclick="createNewTournament()">
                         <i class="fas fa-plus"></i> Create Tournament
                     </button>
                 </div>
@@ -1488,6 +1488,7 @@
         let currentAdmin = null;
         let currentTournamentForStatus = null;
         let tournamentParticipants = [];
+        let editingTournamentId = null; // Track if we're editing a tournament
 
         // Initialize admin panel
         document.addEventListener('DOMContentLoaded', function() {
@@ -1892,7 +1893,23 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         }
 
         // Modal functions
+        function createNewTournament() {
+            // Reset editing state for new tournament
+            editingTournamentId = null;
+            document.querySelector('#createTournamentModal .modal-title').textContent = 'Create New Tournament';
+            document.querySelector('#createTournamentModal .btn-primary').textContent = 'Create Tournament';
+            document.getElementById('createTournamentForm').reset();
+            showCreateTournamentModal();
+        }
+        
         function showCreateTournamentModal() {
+            // Reset editing state if opening for new tournament
+            if (!editingTournamentId) {
+                document.querySelector('#createTournamentModal .modal-title').textContent = 'Create New Tournament';
+                document.querySelector('#createTournamentModal .btn-primary').textContent = 'Create Tournament';
+                document.getElementById('createTournamentForm').reset();
+            }
+            
             document.getElementById('createTournamentModal').classList.add('active');
         }
 
@@ -1902,12 +1919,27 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');
+            
+            // Reset editing state when closing tournament modal
+            if (modalId === 'createTournamentModal') {
+                editingTournamentId = null;
+                document.querySelector('#createTournamentModal .modal-title').textContent = 'Create New Tournament';
+                document.querySelector('#createTournamentModal .btn-primary').textContent = 'Create Tournament';
+                document.getElementById('createTournamentForm').reset();
+            }
         }
 
         // Tournament actions
         function editTournament(id) {
             const tournament = tournaments.find(t => t.id === id);
             if (tournament) {
+                // Set editing mode
+                editingTournamentId = id;
+                
+                // Update modal title
+                document.querySelector('#createTournamentModal .modal-title').textContent = 'Edit Tournament';
+                document.querySelector('#createTournamentModal .btn-primary').textContent = 'Update Tournament';
+                
                 // Populate form with tournament data
                 document.getElementById('tournamentTitle').value = tournament.title;
                 document.getElementById('tournamentDateTime').value = tournament.datetime;
@@ -1915,8 +1947,8 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                 document.getElementById('tournamentPrize').value = tournament.prize;
                 document.getElementById('tournamentEntryFee').value = tournament.entryFee;
                 document.getElementById('tournamentMaxPlayers').value = tournament.maxPlayers;
-                document.getElementById('tournamentRoomId').value = tournament.roomId;
-                document.getElementById('tournamentRoomPass').value = tournament.roomPass;
+                document.getElementById('tournamentRoomId').value = tournament.roomId || '';
+                document.getElementById('tournamentRoomPass').value = tournament.roomPass || '';
                 
                 showCreateTournamentModal();
             }
@@ -2065,33 +2097,65 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         document.getElementById('createTournamentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const newTournament = {
-                id: 'tournament-' + Date.now(),
+            const tournamentData = {
                 title: document.getElementById('tournamentTitle').value,
                 datetime: document.getElementById('tournamentDateTime').value,
                 map: document.getElementById('tournamentMap').value,
                 prize: parseInt(document.getElementById('tournamentPrize').value),
                 entryFee: parseInt(document.getElementById('tournamentEntryFee').value),
                 maxPlayers: parseInt(document.getElementById('tournamentMaxPlayers').value),
-                currentPlayers: 0,
-                status: 'upcoming',
                 roomId: document.getElementById('tournamentRoomId').value,
                 roomPass: document.getElementById('tournamentRoomPass').value
             };
 
             try {
-                // Add to Firestore
-                await db.collection('tournaments').doc(newTournament.id).set(newTournament);
-                
-                tournaments.push(newTournament);
-                loadTournaments();
-                updateMetrics();
-                closeModal('createTournamentModal');
-                
-                showNotification('success', 'Tournament Created!', 'Tournament has been created successfully and is now available for registration.');
+                if (editingTournamentId) {
+                    // Update existing tournament
+                    console.log('Updating tournament:', editingTournamentId);
+                    
+                    // Add update metadata
+                    tournamentData.lastUpdated = Date.now();
+                    tournamentData.updatedBy = auth.currentUser.uid;
+                    
+                    await db.collection('tournaments').doc(editingTournamentId).update(tournamentData);
+                    
+                    // Update local tournament object
+                    const tournamentIndex = tournaments.findIndex(t => t.id === editingTournamentId);
+                    if (tournamentIndex > -1) {
+                        tournaments[tournamentIndex] = { ...tournaments[tournamentIndex], ...tournamentData };
+                    }
+                    
+                    loadTournaments();
+                    updateMetrics();
+                    closeModal('createTournamentModal');
+                    
+                    showNotification('success', 'Tournament Updated!', 'Tournament has been updated successfully.');
+                } else {
+                    // Create new tournament
+                    console.log('Creating new tournament');
+                    
+                    const newTournament = {
+                        id: 'tournament-' + Date.now(),
+                        ...tournamentData,
+                        currentPlayers: 0,
+                        status: 'upcoming',
+                        createdAt: Date.now(),
+                        createdBy: auth.currentUser.uid
+                    };
+
+                    await db.collection('tournaments').doc(newTournament.id).set(newTournament);
+                    
+                    tournaments.push(newTournament);
+                    loadTournaments();
+                    updateMetrics();
+                    closeModal('createTournamentModal');
+                    
+                    showNotification('success', 'Tournament Created!', 'Tournament has been created successfully and is now available for registration.');
+                }
             } catch (error) {
-                console.error('Error creating tournament:', error);
-                showNotification('error', 'Creation Failed', 'Failed to create tournament. Please check all fields and try again.');
+                console.error('Error saving tournament:', error);
+                const action = editingTournamentId ? 'update' : 'create';
+                showNotification('error', 'Save Failed', `Failed to ${action} tournament. Please check all fields and try again.`);
             }
         });
 
@@ -3169,6 +3233,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         window.signOut = signOut;
         window.showSection = showSection;
         window.toggleSidebar = toggleSidebar;
+        window.createNewTournament = createNewTournament;
         window.showCreateTournamentModal = showCreateTournamentModal;
         window.showNotificationModal = showNotificationModal;
         window.closeModal = closeModal;
