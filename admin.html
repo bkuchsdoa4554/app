@@ -2358,10 +2358,11 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
     '<script>' +
         'function downloadImage() {' +
             'const link = document.createElement("a");' +
-            'link.href = "' + screenshotUrl + '";' +
+            'link.href = window.screenshotData;' +
             'link.download = "payment_screenshot_" + Date.now() + ".jpg";' +
             'link.click();' +
         '}' +
+        'window.screenshotData = ' + JSON.stringify(screenshotUrl) + ';' +
     '</script>' +
 '</body>' +
 '</html>';
@@ -3430,21 +3431,20 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
 
         // Custom Confirmation Dialog System
         function showConfirmation(title, message, confirmCallback) {
-            const modalHTML = `
-                <div id="confirmationModal" class="notification-modal active" style="z-index: 3500;">
-                    <div class="notification-content">
-                        <div class="notification-icon warning">
-                            <i class="fas fa-question-circle"></i>
-                        </div>
-                        <div class="notification-title">${title}</div>
-                        <div class="notification-message">${message}</div>
-                        <div class="notification-buttons">
-                            <button class="btn btn-secondary" onclick="closeConfirmation()">Cancel</button>
-                            <button class="btn btn-primary" onclick="confirmAction()">Confirm</button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            const modalHTML = 
+                '<div id="confirmationModal" class="notification-modal active" style="z-index: 3500;">' +
+                    '<div class="notification-content">' +
+                        '<div class="notification-icon warning">' +
+                            '<i class="fas fa-question-circle"></i>' +
+                        '</div>' +
+                        '<div class="notification-title">' + title + '</div>' +
+                        '<div class="notification-message">' + message + '</div>' +
+                        '<div class="notification-buttons">' +
+                            '<button class="btn btn-secondary" onclick="closeConfirmation()">Cancel</button>' +
+                            '<button class="btn btn-primary" onclick="confirmAction()">Confirm</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
             
             document.body.insertAdjacentHTML('beforeend', modalHTML);
             
@@ -3468,25 +3468,24 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         }
         
         function showPromptConfirmation(title, promptText, confirmText, callback) {
-            const modalHTML = `
-                <div id="promptConfirmationModal" class="notification-modal active" style="z-index: 3500;">
-                    <div class="notification-content" style="max-width: 400px;">
-                        <div class="notification-icon warning">
-                            <i class="fas fa-question-circle"></i>
-                        </div>
-                        <div class="notification-title">${title}</div>
-                        <div class="notification-message">${promptText}</div>
-                        <div style="margin: 15px 0;">
-                            <input type="text" id="promptInput" class="form-control" placeholder="Enter reason..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
-                        </div>
-                        <div class="notification-message" style="margin-top: 15px;">${confirmText}</div>
-                        <div class="notification-buttons">
-                            <button class="btn btn-secondary" onclick="closePromptConfirmation()">Cancel</button>
-                            <button class="btn btn-primary" onclick="confirmPromptAction()">Confirm</button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            const modalHTML = 
+                '<div id="promptConfirmationModal" class="notification-modal active" style="z-index: 3500;">' +
+                    '<div class="notification-content" style="max-width: 400px;">' +
+                        '<div class="notification-icon warning">' +
+                            '<i class="fas fa-question-circle"></i>' +
+                        '</div>' +
+                        '<div class="notification-title">' + title + '</div>' +
+                        '<div class="notification-message">' + promptText + '</div>' +
+                        '<div style="margin: 15px 0;">' +
+                            '<input type="text" id="promptInput" class="form-control" placeholder="Enter reason..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">' +
+                        '</div>' +
+                        '<div class="notification-message" style="margin-top: 15px;">' + confirmText + '</div>' +
+                        '<div class="notification-buttons">' +
+                            '<button class="btn btn-secondary" onclick="closePromptConfirmation()">Cancel</button>' +
+                            '<button class="btn btn-primary" onclick="confirmPromptAction()">Confirm</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
             
             document.body.insertAdjacentHTML('beforeend', modalHTML);
             
