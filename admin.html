@@ -516,6 +516,32 @@
             gap: 0.5rem;
         }
 
+        /* Badge Styles */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .badge-success {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .badge-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .player-info {
+            display: flex;
+            flex-direction: column;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .sidebar {
@@ -817,12 +843,13 @@
                 </div>
 
                 <div class="search-filters">
-                    <input type="text" class="search-input" placeholder="Search players..." id="playerSearch">
-                    <select class="form-select" id="playerFilter">
+                    <input type="text" class="search-input" placeholder="Search players..." id="playerSearch" onkeyup="filterPlayers()">
+                    <select class="form-select" id="playerFilter" onchange="filterPlayers()">
                         <option value="all">All Players</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                        <option value="active">Active (Has Tournaments)</option>
+                        <option value="inactive">Inactive (No Tournaments)</option>
                     </select>
+                    <button class="btn btn-primary" onclick="loadPlayers()">Refresh</button>
                 </div>
 
                 <div class="card">
@@ -1413,7 +1440,9 @@
             document.getElementById(sectionName).classList.add('active');
             
             // Add active class to clicked nav item
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
             
             // Update page title
             const titles = {
@@ -1426,6 +1455,37 @@
                 settings: 'Settings'
             };
             document.getElementById('pageTitle').textContent = titles[sectionName] || 'Dashboard';
+
+            // Refresh data when navigating to certain sections
+            console.log(`Navigating to ${sectionName} section`);
+            if (sectionName === 'players') {
+                console.log('Refreshing players data...');
+                setTimeout(() => {
+                    if (players.length === 0) {
+                        console.log('No players found, loading from Firebase...');
+                        loadPlayers();
+                    } else {
+                        console.log(`Displaying ${players.length} existing players`);
+                        displayPlayers();
+                    }
+                }, 100);
+            } else if (sectionName === 'payments') {
+                setTimeout(() => {
+                    if (payments.length === 0) {
+                        loadPayments();
+                    } else {
+                        displayPayments();
+                    }
+                }, 100);
+            } else if (sectionName === 'tournaments') {
+                setTimeout(() => {
+                    if (tournaments.length === 0) {
+                        loadTournaments();
+                    } else {
+                        displayTournaments();
+                    }
+                }, 100);
+            }
         }
 
         function toggleSidebar() {
@@ -1483,15 +1543,60 @@
 
         async function loadPlayers() {
             try {
-                const snapshot = await db.collection('users').orderBy('joinDate', 'desc').get();
+                console.log('Loading players from Firebase...');
+                
+                if (!db) {
+                    console.error('Database not initialized');
+                    return;
+                }
+                
+                // Try to order by joinDate, but fallback if it fails
+                let snapshot;
+                try {
+                    snapshot = await db.collection('users').orderBy('joinDate', 'desc').get();
+                } catch (orderError) {
+                    console.warn('Could not order by joinDate, loading without ordering:', orderError);
+                    snapshot = await db.collection('users').get();
+                }
+                
                 players = [];
-                snapshot.forEach(doc => {
-                    players.push({ id: doc.id, ...doc.data() });
+                
+                console.log(`Found ${snapshot.size} players`);
+                
+                // Load tournament counts for each player
+                const registrationSnapshot = await db.collection('registrations').get();
+                const registrationCounts = {};
+                
+                registrationSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const userId = data.userId;
+                    registrationCounts[userId] = (registrationCounts[userId] || 0) + 1;
                 });
+                
+                snapshot.forEach(doc => {
+                    const playerData = { 
+                        id: doc.id, 
+                        ...doc.data(),
+                        tournamentsJoined: registrationCounts[doc.id] || 0
+                    };
+                    players.push(playerData);
+                    console.log('Loaded player:', playerData.name, playerData.email);
+                });
+                
+                // Sort by joinDate if available, otherwise by name
+                players.sort((a, b) => {
+                    if (a.joinDate && b.joinDate) {
+                        return new Date(b.joinDate) - new Date(a.joinDate);
+                    }
+                    return (a.name || '').localeCompare(b.name || '');
+                });
+                
                 displayPlayers();
+                console.log('Players loaded successfully');
             } catch (error) {
                 console.error('Error loading players:', error);
-                displayEmptyTable('playersTable', 'No players found');
+                console.error('Error details:', error.message);
+                displayEmptyTable('playersTable', 'Error loading players. Please refresh the page.');
             }
         }
 
@@ -1504,25 +1609,144 @@
                 return;
             }
 
+            console.log(`Displaying ${players.length} players`);
+
             players.forEach(player => {
                 const row = document.createElement('tr');
+                
+                // Format join date
+                let joinDateDisplay = 'N/A';
+                if (player.joinDate) {
+                    try {
+                        joinDateDisplay = new Date(player.joinDate).toLocaleDateString();
+                    } catch (e) {
+                        joinDateDisplay = 'Invalid Date';
+                    }
+                }
+                
+                // Format wallet balance
+                const walletBalance = (player.walletBalance || 0).toLocaleString();
+                
                 row.innerHTML = `
-                    <td>${player.name || 'Unknown'}</td>
+                    <td>
+                        <div class="player-info">
+                            <strong>${player.name || 'Unknown'}</strong>
+                            <small style="display: block; color: #666;">${player.email || 'No email'}</small>
+                        </div>
+                    </td>
                     <td>${player.uid || 'N/A'}</td>
-                    <td>Rs. ${player.walletBalance || 0}</td>
-                    <td>${player.tournamentsJoined || 0}</td>
-                    <td>${player.referrals || 0}</td>
-                    <td>${player.joinDate ? new Date(player.joinDate).toLocaleDateString() : 'N/A'}</td>
+                    <td>Rs. ${walletBalance}</td>
+                    <td>
+                        <span class="badge ${player.tournamentsJoined > 0 ? 'badge-success' : 'badge-secondary'}">
+                            ${player.tournamentsJoined || 0}
+                        </span>
+                    </td>
+                    <td>${player.referralEarnings || 0}</td>
+                    <td>${joinDateDisplay}</td>
                     <td>
                         <div class="action-buttons">
-                            <button class="btn btn-sm btn-secondary" onclick="viewPlayer('${player.id}')">View</button>
-                            <button class="btn btn-sm btn-danger" onclick="banPlayer('${player.id}')">Ban</button>
+                            <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails('${player.id}')">View</button>
+                            <button class="btn btn-sm btn-warning" onclick="editUserBalance('${player.id}')">Edit Balance</button>
                         </div>
                     </td>
                 `;
                 tbody.appendChild(row);
             });
         }
+
+        // Function to view player details
+        function viewPlayerDetails(playerId) {
+            const player = players.find(p => p.id === playerId);
+            if (!player) {
+                alert('Player not found');
+                return;
+            }
+            
+            alert(`Player Details:
+Name: ${player.name || 'Unknown'}
+Email: ${player.email || 'N/A'}
+Free Fire UID: ${player.uid || 'N/A'}
+Wallet Balance: Rs. ${player.walletBalance || 0}
+Tournaments Joined: ${player.tournamentsJoined || 0}
+Referral Code: ${player.referralCode || 'Not generated'}
+Referral Earnings: Rs. ${player.referralEarnings || 0}
+         Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A'}`);
+         }
+
+         // Filter players based on search and status
+         function filterPlayers() {
+             const searchTerm = document.getElementById('playerSearch').value.toLowerCase();
+             const filterValue = document.getElementById('playerFilter').value;
+             
+             let filteredPlayers = players.filter(player => {
+                 // Search filter
+                 const matchesSearch = 
+                     (player.name || '').toLowerCase().includes(searchTerm) ||
+                     (player.email || '').toLowerCase().includes(searchTerm) ||
+                     (player.uid || '').toLowerCase().includes(searchTerm);
+                 
+                 // Status filter
+                 let matchesFilter = true;
+                 if (filterValue === 'active') {
+                     matchesFilter = (player.tournamentsJoined || 0) > 0;
+                 } else if (filterValue === 'inactive') {
+                     matchesFilter = (player.tournamentsJoined || 0) === 0;
+                 }
+                 
+                 return matchesSearch && matchesFilter;
+             });
+             
+             // Display filtered players
+             const tbody = document.getElementById('playersTable');
+             tbody.innerHTML = '';
+             
+             if (filteredPlayers.length === 0) {
+                 displayEmptyTable('playersTable', 'No players match your search criteria');
+                 return;
+             }
+             
+             filteredPlayers.forEach(player => {
+                 const row = document.createElement('tr');
+                 
+                 // Format join date
+                 let joinDateDisplay = 'N/A';
+                 if (player.joinDate) {
+                     try {
+                         joinDateDisplay = new Date(player.joinDate).toLocaleDateString();
+                     } catch (e) {
+                         joinDateDisplay = 'Invalid Date';
+                     }
+                 }
+                 
+                 // Format wallet balance
+                 const walletBalance = (player.walletBalance || 0).toLocaleString();
+                 
+                 row.innerHTML = `
+                     <td>
+                         <div class="player-info">
+                             <strong>${player.name || 'Unknown'}</strong>
+                             <small style="display: block; color: #666;">${player.email || 'No email'}</small>
+                         </div>
+                     </td>
+                     <td>${player.uid || 'N/A'}</td>
+                     <td>Rs. ${walletBalance}</td>
+                     <td>
+                         <span class="badge ${player.tournamentsJoined > 0 ? 'badge-success' : 'badge-secondary'}">
+                             ${player.tournamentsJoined || 0}
+                         </span>
+                     </td>
+                     <td>${player.referralEarnings || 0}</td>
+                     <td>${joinDateDisplay}</td>
+                     <td>
+                         <div class="action-buttons">
+                             <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails('${player.id}')">View</button>
+                             <button class="btn btn-sm btn-warning" onclick="editUserBalance('${player.id}')">Edit Balance</button>
+                         </div>
+                     </td>
+                 `;
+                 tbody.appendChild(row);
+             });
+         }
 
         async function loadPayments() {
             try {
@@ -1875,6 +2099,12 @@
 
         // Update metrics
         function updateMetrics() {
+            console.log('Updating metrics:', {
+                tournaments: tournaments.length,
+                players: players.length,
+                payments: payments.length
+            });
+            
             document.getElementById('totalTournaments').textContent = tournaments.length;
             document.getElementById('totalPlayers').textContent = players.length.toLocaleString();
             document.getElementById('onlinePlayers').textContent = Math.floor(Math.random() * 10);
@@ -2684,6 +2914,8 @@
         window.rejectPayment = rejectPayment;
         window.viewScreenshot = viewScreenshot;
         window.viewPlayer = viewPlayer;
+        window.viewPlayerDetails = viewPlayerDetails;
+        window.filterPlayers = filterPlayers;
         window.banPlayer = banPlayer;
         window.signInAsAdmin = signInAsAdmin;
         window.showAddBalanceModal = showAddBalanceModal;
