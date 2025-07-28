@@ -628,6 +628,27 @@
             justify-content: center;
         }
 
+        /* Confirmation Modal Specific Styles */
+        .notification-icon.warning {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
         /* Payment Screenshot Styles */
         .payment-screenshot {
             width: 60px;
@@ -2103,14 +2124,22 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         }
 
         function deleteTournament(id) {
-            if (confirm('Are you sure you want to delete this tournament?')) {
-                const index = tournaments.findIndex(t => t.id === id);
-                if (index > -1) {
-                    tournaments.splice(index, 1);
-                    loadTournaments();
-                    updateMetrics();
+            const tournament = tournaments.find(t => t.id === id);
+            const tournamentName = tournament ? tournament.title : 'this tournament';
+            
+            showConfirmation(
+                'Delete Tournament',
+                `Are you sure you want to delete "${tournamentName}"? This action cannot be undone.`,
+                () => {
+                    const index = tournaments.findIndex(t => t.id === id);
+                    if (index > -1) {
+                        tournaments.splice(index, 1);
+                        loadTournaments();
+                        updateMetrics();
+                        showNotification('success', 'Tournament Deleted', 'Tournament has been successfully deleted.');
+                    }
                 }
-            }
+            );
         }
 
         // Payment actions
@@ -2121,7 +2150,10 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                 return;
             }
             
-            if (confirm(`Approve payment of Rs. ${payment.amount} for ${payment.playerName}?`)) {
+            showConfirmation(
+                'Approve Payment',
+                `Approve payment of Rs. ${payment.amount} for ${payment.playerName}?`,
+                async () => {
                 try {
                     // Update payment status
                     await db.collection('payments').doc(id).update({
@@ -2176,7 +2208,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                     console.error('Error approving payment:', error);
                     showNotification('error', 'Approval Failed', 'Failed to approve payment. Please try again.');
                 }
-            }
+            });
         }
 
         async function rejectPayment(id) {
@@ -2186,10 +2218,11 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                 return;
             }
             
-            const reason = prompt('Enter reason for rejection:');
-            if (reason === null) return; // User cancelled
-            
-            if (confirm(`Reject payment of Rs. ${payment.amount} for ${payment.playerName}?`)) {
+            showPromptConfirmation(
+                'Reject Payment',
+                'Enter reason for rejection:',
+                `Reject payment of Rs. ${payment.amount} for ${payment.playerName}?`,
+                async (reason) => {
                 try {
                     // Update payment status
                     await db.collection('payments').doc(id).update({
@@ -2215,7 +2248,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                     console.error('Error rejecting payment:', error);
                     showNotification('error', 'Rejection Failed', 'Failed to reject payment. Please try again.');
                 }
-            }
+            });
         }
 
         function viewPayment(id) {
@@ -2380,14 +2413,20 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         }
 
         function banPlayer(id) {
-            if (confirm('Are you sure you want to ban this player?')) {
-                const player = players.find(p => p.id === id);
-                if (player) {
-                    player.status = 'banned';
-                    loadPlayers();
-                    showNotification('success', 'Player Banned', `Player ${player.name} has been banned`);
+            const player = players.find(p => p.id === id);
+            const playerName = player ? player.name : 'this player';
+            
+            showConfirmation(
+                'Ban Player',
+                `Are you sure you want to ban ${playerName}? This action can be reversed later.`,
+                () => {
+                    if (player) {
+                        player.status = 'banned';
+                        loadPlayers();
+                        showNotification('success', 'Player Banned', `Player ${playerName} has been banned`);
+                    }
                 }
-            }
+            );
         }
 
         // Form handlers
@@ -3278,15 +3317,24 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                 winnerName = selectedOption.dataset.playerName;
                 winnerUID = selectedOption.dataset.playerUID;
                 
-                if (!confirm(`Confirm tournament completion?\n\nWinner: ${winnerName}\nPrize: Rs. ${currentTournamentForStatus.prize}\n\nThis will add the prize amount to winner's wallet.`)) {
-                    return;
-                }
+                showConfirmation(
+                    'Complete Tournament',
+                    `Confirm tournament completion?\n\nWinner: ${winnerName}\nPrize: Rs. ${currentTournamentForStatus.prize}\n\nThis will add the prize amount to winner's wallet.`,
+                    () => { updateTournamentStatusInternal(newStatus, winnerId, winnerName, winnerUID); }
+                );
+                return;
             } else {
-                if (!confirm(`Update tournament status to "${newStatus.toUpperCase()}"?`)) {
-                    return;
-                }
+                showConfirmation(
+                    'Update Tournament Status',
+                    `Update tournament status to "${newStatus.toUpperCase()}"?`,
+                    () => { updateTournamentStatusInternal(newStatus, null, null, null); }
+                );
+                return;
             }
-            
+        }
+
+        // Internal function to handle the actual tournament status update
+        async function updateTournamentStatusInternal(newStatus, winnerId, winnerName, winnerUID) {
             try {
                 // Update tournament status
                 const updateData = {
@@ -3380,6 +3428,99 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
             }
         }
 
+        // Custom Confirmation Dialog System
+        function showConfirmation(title, message, confirmCallback) {
+            const modalHTML = `
+                <div id="confirmationModal" class="notification-modal active" style="z-index: 3500;">
+                    <div class="notification-content">
+                        <div class="notification-icon warning">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <div class="notification-title">${title}</div>
+                        <div class="notification-message">${message}</div>
+                        <div class="notification-buttons">
+                            <button class="btn btn-secondary" onclick="closeConfirmation()">Cancel</button>
+                            <button class="btn btn-primary" onclick="confirmAction()">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Store callback
+            window.confirmationCallback = confirmCallback;
+        }
+        
+        function closeConfirmation() {
+            const modal = document.getElementById('confirmationModal');
+            if (modal) {
+                modal.remove();
+                window.confirmationCallback = null;
+            }
+        }
+        
+        function confirmAction() {
+            if (window.confirmationCallback) {
+                window.confirmationCallback();
+            }
+            closeConfirmation();
+        }
+        
+        function showPromptConfirmation(title, promptText, confirmText, callback) {
+            const modalHTML = `
+                <div id="promptConfirmationModal" class="notification-modal active" style="z-index: 3500;">
+                    <div class="notification-content" style="max-width: 400px;">
+                        <div class="notification-icon warning">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <div class="notification-title">${title}</div>
+                        <div class="notification-message">${promptText}</div>
+                        <div style="margin: 15px 0;">
+                            <input type="text" id="promptInput" class="form-control" placeholder="Enter reason..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        </div>
+                        <div class="notification-message" style="margin-top: 15px;">${confirmText}</div>
+                        <div class="notification-buttons">
+                            <button class="btn btn-secondary" onclick="closePromptConfirmation()">Cancel</button>
+                            <button class="btn btn-primary" onclick="confirmPromptAction()">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            
+            // Store callback and focus input
+            window.promptConfirmationCallback = callback;
+            setTimeout(() => {
+                const input = document.getElementById('promptInput');
+                if (input) input.focus();
+            }, 100);
+        }
+        
+        function closePromptConfirmation() {
+            const modal = document.getElementById('promptConfirmationModal');
+            if (modal) {
+                modal.remove();
+                window.promptConfirmationCallback = null;
+            }
+        }
+        
+        function confirmPromptAction() {
+            const input = document.getElementById('promptInput');
+            const value = input ? input.value.trim() : '';
+            
+            if (!value) {
+                showNotification('warning', 'Input Required', 'Please enter a value before confirming.');
+                return;
+            }
+            
+            if (window.promptConfirmationCallback) {
+                window.promptConfirmationCallback(value);
+            }
+            closePromptConfirmation();
+        }
+
         // Admin Notification System
         function showNotification(type, title, message, callback) {
             const modal = document.getElementById('adminNotificationModal');
@@ -3447,6 +3588,13 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         window.closeAdminNotification = closeAdminNotification;
         window.showScreenshotModal = showScreenshotModal;
         window.closeScreenshotModal = closeScreenshotModal;
+        window.showConfirmation = showConfirmation;
+        window.closeConfirmation = closeConfirmation;
+        window.confirmAction = confirmAction;
+        window.showPromptConfirmation = showPromptConfirmation;
+        window.closePromptConfirmation = closePromptConfirmation;
+        window.confirmPromptAction = confirmPromptAction;
+        window.updateTournamentStatusInternal = updateTournamentStatusInternal;
     </script>
 
     <!-- Admin Notification Modal -->
