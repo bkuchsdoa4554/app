@@ -257,8 +257,19 @@
             transition: all 0.3s ease;
         }
 
-        .join-button:hover {
+        .join-button:hover:not(.registered):not(:disabled) {
             background: #1D4ED8;
+        }
+
+        .join-button.registered {
+            background: #10b981;
+            color: white;
+            cursor: default;
+        }
+
+        .join-button.registered:hover {
+            background: #10b981;
+            transform: none;
         }
 
         .join-button:disabled {
@@ -1118,24 +1129,87 @@
             const card = document.createElement('div');
             card.className = 'tournament-card';
             
+            // Check if user is registered for this tournament
+            const isUserRegistered = currentUser && userData.registrations && 
+                userData.registrations.some(reg => reg.tournamentId === tournament.id);
+            
+            console.log(`Tournament ${tournament.title} - User registered:`, isUserRegistered, 
+                'User registrations:', userData.registrations?.length || 0);
+            
             const statusClass = tournament.status === 'live' ? 'status-live' : 
                                tournament.status === 'upcoming' ? 'status-upcoming' : 
                                tournament.status === 'completed' ? 'status-past' : 'status-past';
             
-            let buttonText, buttonDisabled;
+            let buttonText, buttonDisabled, buttonAction, roomDetailsHtml = '';
             
-            if (tournament.status === 'completed') {
-                buttonText = tournament.winnerName ? `Winner: ${tournament.winnerName}` : 'Tournament Completed';
-                buttonDisabled = true;
-            } else if (tournament.status === 'cancelled') {
-                buttonText = 'Tournament Cancelled';
-                buttonDisabled = true;
-            } else if (tournament.currentPlayers >= tournament.maxPlayers) {
-                buttonText = 'Tournament Full';
-                buttonDisabled = true;
+            if (isUserRegistered) {
+                // User is registered - show status and room details if available
+                if (tournament.status === 'completed') {
+                    buttonText = tournament.winnerName ? `Winner: ${tournament.winnerName}` : 'Tournament Completed';
+                    buttonDisabled = true;
+                    buttonAction = '';
+                } else if (tournament.status === 'cancelled') {
+                    buttonText = 'Tournament Cancelled';
+                    buttonDisabled = true;
+                    buttonAction = '';
+                } else {
+                    buttonText = '✓ Registered';
+                    buttonDisabled = true;
+                    buttonAction = '';
+                    
+                    // Show room details if available and tournament is live or starting soon
+                    const showRoomDetails = tournament.status === 'live' || 
+                        (tournament.datetime && new Date(tournament.datetime).getTime() - Date.now() <= 30 * 60 * 1000);
+                    
+                    if (showRoomDetails && (tournament.roomId || tournament.roomPass)) {
+                        roomDetailsHtml = `
+                            <div class="room-details available" style="margin-top: 1rem;">
+                                <div class="room-title">
+                                    <i class="fas fa-gamepad"></i>
+                                    Room Details Available
+                                </div>
+                                <div class="room-info">
+                                    <div class="room-field">
+                                        <div class="room-label">Room ID</div>
+                                        <div class="room-value">${tournament.roomId || 'Not Set'}</div>
+                                    </div>
+                                    <div class="room-field">
+                                        <div class="room-label">Password</div>
+                                        <div class="room-value">${tournament.roomPass || 'Not Set'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (tournament.status === 'upcoming') {
+                        roomDetailsHtml = `
+                            <div class="room-details" style="margin-top: 1rem;">
+                                <div class="room-title">
+                                    <i class="fas fa-clock"></i>
+                                    Room details will appear 30 minutes before tournament time
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
             } else {
-                buttonText = `Join Now - Rs. ${tournament.entryFee}`;
-                buttonDisabled = false;
+                // User is not registered - show join button
+                if (tournament.status === 'completed') {
+                    buttonText = tournament.winnerName ? `Winner: ${tournament.winnerName}` : 'Tournament Completed';
+                    buttonDisabled = true;
+                    buttonAction = '';
+                } else if (tournament.status === 'cancelled') {
+                    buttonText = 'Tournament Cancelled';
+                    buttonDisabled = true;
+                    buttonAction = '';
+                } else if (tournament.currentPlayers >= tournament.maxPlayers) {
+                    buttonText = 'Tournament Full';
+                    buttonDisabled = true;
+                    buttonAction = '';
+                } else {
+                    buttonText = `Join Now - Rs. ${tournament.entryFee}`;
+                    buttonDisabled = false;
+                    buttonAction = `onclick="handleJoinTournament('${tournament.id}')"`;
+                }
             }
 
             // Format tournament time
@@ -1167,10 +1241,11 @@
                         <span>${tournament.currentPlayers || 0}/${tournament.maxPlayers || 0}</span>
                     </div>
                 </div>
-                <button class="join-button" ${buttonDisabled ? 'disabled' : ''} 
-                        onclick="handleJoinTournament('${tournament.id}')">
+                <button class="join-button ${isUserRegistered ? 'registered' : ''}" ${buttonDisabled ? 'disabled' : ''} 
+                        ${buttonAction}>
                     ${buttonText}
                 </button>
+                ${roomDetailsHtml}
             `;
 
             return card;
@@ -1358,9 +1433,23 @@
                 tournament.currentPlayers = (tournament.currentPlayers || 0) + 1;
 
                 console.log('Registration successful, updating UI...');
+                
+                // Update local userData with new registration
+                userData.registrations.push({
+                    id: 'temp-' + Date.now(), // Temporary ID
+                    userId: currentUser.uid,
+                    tournamentId: currentTournamentId,
+                    tournamentTitle: tournament.title,
+                    playerName: playerName,
+                    playerUID: playerUID || '',
+                    entryFee: tournament.entryFee,
+                    timestamp: Date.now(),
+                    status: 'registered'
+                });
+                
                 updateUserData();
-                await loadTournamentsFromFirebase(); // Refresh tournaments from Firebase
-                await loadUserRegistrations(currentUser.uid); // Refresh user registrations
+                await loadTournamentsFromFirebase(); // Refresh tournaments from Firebase to show updated status
+                await loadUserRegistrations(currentUser.uid); // Refresh user registrations display
                 closeModal('joinModal');
                 
                 // Show success message
@@ -1542,19 +1631,16 @@
                 console.log('User authenticated:', user.email);
                 currentUser = user;
                 
-                // Load user data from Firestore
+                // Load user data from Firestore (this also loads registrations)
                 await loadUserData(user.uid);
                 
                 // Generate referral code if user doesn't have one
                 await generateReferralCodeIfNeeded(user.uid);
                 
-                // Load tournaments after user is authenticated
+                // Load tournaments after user data is ready
                 await loadTournamentsFromFirebase();
                 
-                // Load user registrations
-                await loadUserRegistrations(user.uid);
-                
-                console.log('User setup complete');
+                console.log('User setup complete:', userData);
             } else {
                 console.log('User not authenticated');
                 currentUser = null;
@@ -1841,11 +1927,33 @@
                     await db.collection('users').doc(userId).set(userData);
                 }
                 
-                // Load user registrations
-                await loadUserRegistrations(userId);
+                // Load user registrations from separate collection
+                await loadUserRegistrationsData(userId);
                 updateUserData();
+                console.log('User data loaded with registrations:', userData.registrations.length);
             } catch (error) {
                 console.error('Error loading user data:', error);
+            }
+        }
+
+        async function loadUserRegistrationsData(userId) {
+            try {
+                console.log('Loading user registration data for:', userId);
+                
+                const snapshot = await db.collection('registrations')
+                    .where('userId', '==', userId)
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
+                userData.registrations = [];
+                snapshot.forEach(doc => {
+                    userData.registrations.push({ id: doc.id, ...doc.data() });
+                });
+                
+                console.log(`Loaded ${userData.registrations.length} user registrations`);
+            } catch (error) {
+                console.error('Error loading user registrations:', error);
+                userData.registrations = [];
             }
         }
 
