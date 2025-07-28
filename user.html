@@ -859,20 +859,41 @@
         // Load tournaments from Firebase
         async function loadTournamentsFromFirebase() {
             try {
+                console.log('Loading tournaments from Firebase...');
+                
+                if (!db) {
+                    console.error('Database not initialized');
+                    return;
+                }
+                
                 const snapshot = await db.collection('tournaments').orderBy('datetime', 'desc').get();
                 tournaments = [];
+                
+                console.log(`Found ${snapshot.size} tournaments`);
+                
                 snapshot.forEach(doc => {
-                    tournaments.push({ id: doc.id, ...doc.data() });
+                    const tournamentData = { id: doc.id, ...doc.data() };
+                    tournaments.push(tournamentData);
+                    console.log('Loaded tournament:', tournamentData.title, tournamentData.status);
                 });
                 
-                // Display live tournaments by default
-                filterTournaments('live');
+                // Display live tournaments by default if on tournaments page
+                if (document.getElementById('tournaments').classList.contains('active')) {
+                    filterTournaments('live');
+                }
                 
                 // Load featured tournaments for home page
                 loadFeaturedTournaments();
+                
+                console.log('Tournaments loaded successfully');
             } catch (error) {
                 console.error('Error loading tournaments:', error);
                 displayEmptyState('tournamentsGrid', 'No tournaments available');
+                
+                // Try to show at least the empty state
+                if (document.getElementById('homeTournaments')) {
+                    displayEmptyState('homeTournaments', 'No tournaments available');
+                }
             }
         }
 
@@ -922,10 +943,30 @@
             card.className = 'tournament-card';
             
             const statusClass = tournament.status === 'live' ? 'status-live' : 
-                               tournament.status === 'upcoming' ? 'status-upcoming' : 'status-past';
+                               tournament.status === 'upcoming' ? 'status-upcoming' : 
+                               tournament.status === 'completed' ? 'status-past' : 'status-past';
             
-            const buttonText = tournament.status === 'past' ? 'View Results' : `Join Now - Rs. ${tournament.entryFee}`;
-            const buttonDisabled = tournament.status === 'past' || tournament.currentPlayers >= tournament.maxPlayers;
+            let buttonText, buttonDisabled;
+            
+            if (tournament.status === 'completed') {
+                buttonText = tournament.winnerName ? `Winner: ${tournament.winnerName}` : 'Tournament Completed';
+                buttonDisabled = true;
+            } else if (tournament.status === 'cancelled') {
+                buttonText = 'Tournament Cancelled';
+                buttonDisabled = true;
+            } else if (tournament.currentPlayers >= tournament.maxPlayers) {
+                buttonText = 'Tournament Full';
+                buttonDisabled = true;
+            } else {
+                buttonText = `Join Now - Rs. ${tournament.entryFee}`;
+                buttonDisabled = false;
+            }
+
+            // Format tournament time
+            let timeDisplay = tournament.time;
+            if (tournament.datetime) {
+                timeDisplay = new Date(tournament.datetime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
 
             card.innerHTML = `
                 <div class="tournament-header">
@@ -935,7 +976,7 @@
                 <div class="tournament-details">
                     <div class="detail-item">
                         <i class="fas fa-clock"></i>
-                        <span>${tournament.time}</span>
+                        <span>${timeDisplay}</span>
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-map"></i>
@@ -943,15 +984,15 @@
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-trophy"></i>
-                        <span>Rs. ${tournament.prize.toLocaleString()}</span>
+                        <span>Rs. ${(tournament.prize || 0).toLocaleString()}</span>
                     </div>
                     <div class="detail-item">
                         <i class="fas fa-users"></i>
-                        <span>${tournament.currentPlayers}/${tournament.maxPlayers}</span>
+                        <span>${tournament.currentPlayers || 0}/${tournament.maxPlayers || 0}</span>
                     </div>
                 </div>
                 <button class="join-button" ${buttonDisabled ? 'disabled' : ''} 
-                        onclick="showJoinModal('${tournament.id}')">
+                        onclick="handleJoinTournament('${tournament.id}')">
                     ${buttonText}
                 </button>
             `;
@@ -959,14 +1000,48 @@
             return card;
         }
 
+        // Handle join tournament button click
+        function handleJoinTournament(tournamentId) {
+            if (!currentUser) {
+                alert('Please sign in first to join tournaments.');
+                return;
+            }
+            
+            showJoinModal(tournamentId);
+        }
+
         // Modal functions
         function showJoinModal(tournamentId) {
+            // Check if user is authenticated
+            if (!currentUser) {
+                alert('Please sign in first to join tournaments.');
+                return;
+            }
+            
             currentTournamentId = tournamentId;
             const tournament = tournaments.find(t => t.id === tournamentId);
             
+            if (!tournament) {
+                alert('Tournament not found.');
+                return;
+            }
+            
+            // Check tournament status
+            if (tournament.status !== 'live' && tournament.status !== 'upcoming') {
+                alert('This tournament is not available for registration.');
+                return;
+            }
+            
+            // Check if tournament is full
+            if (tournament.currentPlayers >= tournament.maxPlayers) {
+                alert('This tournament is full.');
+                return;
+            }
+            
+            // Pre-fill form with user data
             document.getElementById('entryFee').value = `Rs. ${tournament.entryFee}`;
-            document.getElementById('playerName').value = userData.name;
-            document.getElementById('playerUID').value = userData.uid;
+            document.getElementById('playerName').value = userData.name || '';
+            document.getElementById('playerUID').value = userData.uid || '';
             
             document.getElementById('joinModal').classList.add('active');
         }
@@ -1004,6 +1079,18 @@
         document.getElementById('joinForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            // Check if user is authenticated
+            if (!currentUser) {
+                alert('Please sign in first to join tournaments.');
+                return;
+            }
+            
+            // Check if Firebase is initialized
+            if (!db || !auth) {
+                alert('System not ready. Please refresh the page and try again.');
+                return;
+            }
+            
             const tournament = tournaments.find(t => t.id === currentTournamentId);
             
             if (!tournament) {
@@ -1023,37 +1110,64 @@
                 return;
             }
 
+            // Validate form inputs
+            const playerName = document.getElementById('playerName').value.trim();
+            const playerUID = document.getElementById('playerUID').value.trim();
+            
+            if (!playerName) {
+                alert('Please enter your player name.');
+                return;
+            }
+
             try {
+                console.log('Starting tournament registration...', {
+                    tournamentId: currentTournamentId,
+                    userId: currentUser.uid,
+                    entryFee: tournament.entryFee,
+                    currentBalance: userData.walletBalance
+                });
+
                 const newBalance = userData.walletBalance - tournament.entryFee;
                 
                 // Update user balance in Firestore
+                console.log('Updating user balance...');
                 await db.collection('users').doc(currentUser.uid).update({
-                    walletBalance: newBalance
+                    walletBalance: newBalance,
+                    lastBalanceUpdate: Date.now()
                 });
                 
                 // Add registration to Firestore
-                await db.collection('registrations').add({
+                console.log('Adding registration...');
+                const registrationData = {
                     userId: currentUser.uid,
                     tournamentId: currentTournamentId,
                     tournamentTitle: tournament.title,
-                    playerName: userData.name,
-                    playerUID: document.getElementById('playerUID').value,
+                    playerName: playerName,
+                    playerUID: playerUID || '',
                     entryFee: tournament.entryFee,
                     timestamp: Date.now(),
-                    status: 'registered'
-                });
+                    status: 'registered',
+                    registrationDate: new Date().toISOString()
+                };
+                
+                await db.collection('registrations').add(registrationData);
                 
                 // Update tournament player count
+                console.log('Updating tournament player count...');
+                const currentPlayerCount = tournament.currentPlayers || 0;
                 await db.collection('tournaments').doc(currentTournamentId).update({
-                    currentPlayers: (tournament.currentPlayers || 0) + 1
+                    currentPlayers: currentPlayerCount + 1
                 });
                 
                 // Add to activity log
+                console.log('Adding activity log...');
                 await db.collection('activity').add({
                     type: 'Tournament Registration',
-                    playerName: userData.name,
+                    playerName: playerName,
                     amount: tournament.entryFee,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    userId: currentUser.uid,
+                    tournamentId: currentTournamentId
                 });
 
                 // Update local data
@@ -1067,17 +1181,31 @@
                 });
                 tournament.currentPlayers = (tournament.currentPlayers || 0) + 1;
 
+                console.log('Registration successful, updating UI...');
                 updateUserData();
-                loadFeaturedTournaments(); // Refresh home tournaments
-                filterTournaments('live'); // Refresh tournament list
+                await loadTournamentsFromFirebase(); // Refresh tournaments from Firebase
                 closeModal('joinModal');
                 
                 // Show success message with room details
-                alert(`Successfully joined ${tournament.title}!\n\nRoom Details:\nRoom ID: ${tournament.roomId}\nRoom Password: ${tournament.roomPass}\n\nEntry Fee: Rs. ${tournament.entryFee}\nNew Balance: Rs. ${newBalance}`);
+                alert(`Successfully joined ${tournament.title}!\n\nRoom Details:\nRoom ID: ${tournament.roomId || 'TBA'}\nRoom Password: ${tournament.roomPass || 'TBA'}\n\nEntry Fee: Rs. ${tournament.entryFee}\nNew Balance: Rs. ${newBalance}`);
                 
             } catch (error) {
                 console.error('Error joining tournament:', error);
-                alert('Failed to join tournament. Please try again.');
+                console.error('Error details:', error.message);
+                
+                // Provide more specific error messages
+                let errorMessage = 'Failed to join tournament. ';
+                if (error.code === 'permission-denied') {
+                    errorMessage += 'Permission denied. Please check your account status.';
+                } else if (error.code === 'not-found') {
+                    errorMessage += 'Tournament not found.';
+                } else if (error.code === 'unavailable') {
+                    errorMessage += 'Service temporarily unavailable. Please try again.';
+                } else {
+                    errorMessage += 'Please try again or contact support.';
+                }
+                
+                alert(errorMessage);
             }
         });
 
@@ -1224,14 +1352,24 @@
         }
 
         // Firebase Auth State Change
-        auth.onAuthStateChanged(user => {
+        auth.onAuthStateChanged(async user => {
             if (user) {
+                console.log('User authenticated:', user.email);
                 currentUser = user;
+                
                 // Load user data from Firestore
-                loadUserData(user.uid);
+                await loadUserData(user.uid);
+                
                 // Generate referral code if user doesn't have one
-                generateReferralCodeIfNeeded(user.uid);
+                await generateReferralCodeIfNeeded(user.uid);
+                
+                // Load tournaments after user is authenticated
+                await loadTournamentsFromFirebase();
+                
+                console.log('User setup complete');
             } else {
+                console.log('User not authenticated');
+                currentUser = null;
                 // Redirect to login or show login modal
                 showAuthRequired();
             }
@@ -1576,6 +1714,8 @@
         window.showSignUpForm = showSignUpForm;
         window.signInWithEmail = signInWithEmail;
         window.signUpWithEmail = signUpWithEmail;
+        window.handleJoinTournament = handleJoinTournament;
+        window.showJoinModal = showJoinModal;
     </script>
 </body>
 </html>
