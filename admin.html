@@ -756,25 +756,8 @@
                                     <th>Amount</th>
                                 </tr>
                             </thead>
-                            <tbody id="recentActivity">
-                                <tr>
-                                    <td>2 mins ago</td>
-                                    <td>Tournament Registration</td>
-                                    <td>Ahmad Ali</td>
-                                    <td>Rs. 50</td>
-                                </tr>
-                                <tr>
-                                    <td>5 mins ago</td>
-                                    <td>Wallet Top-up</td>
-                                    <td>Fatima Khan</td>
-                                    <td>Rs. 500</td>
-                                </tr>
-                                <tr>
-                                    <td>12 mins ago</td>
-                                    <td>Tournament Join</td>
-                                    <td>Hassan Sheikh</td>
-                                    <td>Rs. 75</td>
-                                </tr>
+                                                        <tbody id="recentActivity">
+                                <!-- Recent activity will be loaded from Firebase -->
                             </tbody>
                         </table>
                     </div>
@@ -1158,123 +1141,31 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        // Sample data
-        const tournaments = [
-            {
-                id: 'evening-clash',
-                title: '🏆 Evening Clash',
-                datetime: '2024-01-20T18:00',
-                map: 'Bermuda',
-                prize: 5000,
-                entryFee: 50,
-                maxPlayers: 100,
-                currentPlayers: 45,
-                status: 'live',
-                roomId: '12345',
-                roomPass: 'abcde'
-            },
-            {
-                id: 'speed-battle',
-                title: '⚡ Speed Battle',
-                datetime: '2024-01-20T20:00',
-                map: 'Kalahari',
-                prize: 3000,
-                entryFee: 30,
-                maxPlayers: 50,
-                currentPlayers: 12,
-                status: 'upcoming',
-                roomId: '67890',
-                roomPass: 'fghij'
-            },
-            {
-                id: 'night-warriors',
-                title: '🌙 Night Warriors',
-                datetime: '2024-01-20T22:00',
-                map: 'Purgatory',
-                prize: 8000,
-                entryFee: 75,
-                maxPlayers: 80,
-                currentPlayers: 67,
-                status: 'live',
-                roomId: '54321',
-                roomPass: 'klmno'
-            }
-        ];
-
-        const players = [
-            {
-                id: 'player1',
-                name: 'Ahmad Ali',
-                uid: '123456789',
-                walletBalance: 750,
-                tournamentsJoined: 5,
-                referrals: 3,
-                joinDate: '2024-01-15',
-                status: 'active'
-            },
-            {
-                id: 'player2',
-                name: 'Fatima Khan',
-                uid: '987654321',
-                walletBalance: 1200,
-                tournamentsJoined: 8,
-                referrals: 7,
-                joinDate: '2024-01-10',
-                status: 'active'
-            },
-            {
-                id: 'player3',
-                name: 'Hassan Sheikh',
-                uid: '456789123',
-                walletBalance: 350,
-                tournamentsJoined: 2,
-                referrals: 1,
-                joinDate: '2024-01-18',
-                status: 'active'
-            }
-        ];
-
-        const payments = [
-            {
-                id: 'payment1',
-                playerName: 'Ahmad Ali',
-                amount: 500,
-                method: 'JazzCash',
-                transactionId: 'JC123456789',
-                screenshot: 'screenshot1.jpg',
-                date: '2024-01-20',
-                status: 'pending'
-            },
-            {
-                id: 'payment2',
-                playerName: 'Fatima Khan',
-                amount: 1000,
-                method: 'EasyPaisa',
-                transactionId: 'EP987654321',
-                screenshot: 'screenshot2.jpg',
-                date: '2024-01-19',
-                status: 'approved'
-            },
-            {
-                id: 'payment3',
-                playerName: 'Hassan Sheikh',
-                amount: 300,
-                method: 'JazzCash',
-                transactionId: 'JC456789123',
-                screenshot: 'screenshot3.jpg',
-                date: '2024-01-18',
-                status: 'rejected'
-            }
-        ];
+        // Data arrays - will be populated from Firebase
+        let tournaments = [];
+        let players = [];
+        let payments = [];
+        let recentActivity = [];
 
         // Initialize admin panel
         document.addEventListener('DOMContentLoaded', function() {
-            loadTournaments();
-            loadPlayers();
-            loadPayments();
-            initializeCharts();
-            updateMetrics();
+            loadAllData();
         });
+
+        async function loadAllData() {
+            try {
+                await Promise.all([
+                    loadTournaments(),
+                    loadPlayers(),
+                    loadPayments(),
+                    loadRecentActivity()
+                ]);
+                updateMetrics();
+                initializeCharts();
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
 
         // Navigation functions
         function showSection(sectionName) {
@@ -1315,18 +1206,37 @@
         }
 
         // Tournament management
-        function loadTournaments() {
+        async function loadTournaments() {
+            try {
+                const snapshot = await db.collection('tournaments').orderBy('datetime', 'desc').get();
+                tournaments = [];
+                snapshot.forEach(doc => {
+                    tournaments.push({ id: doc.id, ...doc.data() });
+                });
+                displayTournaments();
+            } catch (error) {
+                console.error('Error loading tournaments:', error);
+                displayEmptyTable('tournamentsTable', 'No tournaments found');
+            }
+        }
+
+        function displayTournaments() {
             const tbody = document.getElementById('tournamentsTable');
             tbody.innerHTML = '';
+
+            if (tournaments.length === 0) {
+                displayEmptyTable('tournamentsTable', 'No tournaments found');
+                return;
+            }
 
             tournaments.forEach(tournament => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${tournament.title}</td>
                     <td>${new Date(tournament.datetime).toLocaleString()}</td>
-                    <td>Rs. ${tournament.prize.toLocaleString()}</td>
-                    <td>Rs. ${tournament.entryFee}</td>
-                    <td>${tournament.currentPlayers}/${tournament.maxPlayers}</td>
+                    <td>Rs. ${tournament.prize?.toLocaleString() || 0}</td>
+                    <td>Rs. ${tournament.entryFee || 0}</td>
+                    <td>${tournament.currentPlayers || 0}/${tournament.maxPlayers || 0}</td>
                     <td><span class="status-badge status-${tournament.status}">${tournament.status}</span></td>
                     <td>
                         <div class="action-buttons">
@@ -1339,19 +1249,38 @@
             });
         }
 
-        function loadPlayers() {
+        async function loadPlayers() {
+            try {
+                const snapshot = await db.collection('users').orderBy('joinDate', 'desc').get();
+                players = [];
+                snapshot.forEach(doc => {
+                    players.push({ id: doc.id, ...doc.data() });
+                });
+                displayPlayers();
+            } catch (error) {
+                console.error('Error loading players:', error);
+                displayEmptyTable('playersTable', 'No players found');
+            }
+        }
+
+        function displayPlayers() {
             const tbody = document.getElementById('playersTable');
             tbody.innerHTML = '';
+
+            if (players.length === 0) {
+                displayEmptyTable('playersTable', 'No players found');
+                return;
+            }
 
             players.forEach(player => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${player.name}</td>
-                    <td>${player.uid}</td>
-                    <td>Rs. ${player.walletBalance}</td>
-                    <td>${player.tournamentsJoined}</td>
-                    <td>${player.referrals}</td>
-                    <td>${new Date(player.joinDate).toLocaleDateString()}</td>
+                    <td>${player.name || 'Unknown'}</td>
+                    <td>${player.uid || 'N/A'}</td>
+                    <td>Rs. ${player.walletBalance || 0}</td>
+                    <td>${player.tournamentsJoined || 0}</td>
+                    <td>${player.referrals || 0}</td>
+                    <td>${player.joinDate ? new Date(player.joinDate).toLocaleDateString() : 'N/A'}</td>
                     <td>
                         <div class="action-buttons">
                             <button class="btn btn-sm btn-secondary" onclick="viewPlayer('${player.id}')">View</button>
@@ -1363,24 +1292,44 @@
             });
         }
 
-        function loadPayments() {
+        async function loadPayments() {
+            try {
+                const snapshot = await db.collection('payments').orderBy('timestamp', 'desc').get();
+                payments = [];
+                snapshot.forEach(doc => {
+                    payments.push({ id: doc.id, ...doc.data() });
+                });
+                displayPayments();
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                displayEmptyTable('paymentsTable', 'No payments found');
+            }
+        }
+
+        function displayPayments() {
             const tbody = document.getElementById('paymentsTable');
             tbody.innerHTML = '';
+
+            if (payments.length === 0) {
+                displayEmptyTable('paymentsTable', 'No payments found');
+                return;
+            }
 
             payments.forEach(payment => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${payment.playerName}</td>
-                    <td>Rs. ${payment.amount}</td>
-                    <td>${payment.method}</td>
-                    <td>${payment.transactionId}</td>
+                    <td>${payment.playerName || 'Unknown'}</td>
+                    <td>Rs. ${payment.amount || 0}</td>
+                    <td>${payment.method || 'N/A'}</td>
+                    <td>${payment.transactionId || 'N/A'}</td>
                     <td>
-                        <img src="https://via.placeholder.com/100x100?text=Screenshot" 
-                             alt="Payment Screenshot" class="payment-screenshot" 
-                             onclick="viewScreenshot('${payment.screenshot}')">
+                        ${payment.screenshotUrl ? 
+                            `<img src="${payment.screenshotUrl}" alt="Payment Screenshot" class="payment-screenshot" onclick="viewScreenshot('${payment.screenshotUrl}')">` :
+                            'No screenshot'
+                        }
                     </td>
-                    <td>${new Date(payment.date).toLocaleDateString()}</td>
-                    <td><span class="status-badge status-${payment.status}">${payment.status}</span></td>
+                    <td>${payment.timestamp ? new Date(payment.timestamp).toLocaleDateString() : 'N/A'}</td>
+                    <td><span class="status-badge status-${payment.status || 'pending'}">${payment.status || 'pending'}</span></td>
                     <td>
                         <div class="action-buttons">
                             ${payment.status === 'pending' ? `
@@ -1534,13 +1483,85 @@
             }
         });
 
+        async function loadRecentActivity() {
+            try {
+                const snapshot = await db.collection('activity').orderBy('timestamp', 'desc').limit(10).get();
+                recentActivity = [];
+                snapshot.forEach(doc => {
+                    recentActivity.push({ id: doc.id, ...doc.data() });
+                });
+                displayRecentActivity();
+            } catch (error) {
+                console.error('Error loading recent activity:', error);
+                displayEmptyActivity();
+            }
+        }
+
+        function displayRecentActivity() {
+            const tbody = document.getElementById('recentActivity');
+            tbody.innerHTML = '';
+
+            if (recentActivity.length === 0) {
+                displayEmptyActivity();
+                return;
+            }
+
+            recentActivity.forEach(activity => {
+                const row = document.createElement('tr');
+                const timeAgo = getTimeAgo(activity.timestamp);
+                row.innerHTML = `
+                    <td>${timeAgo}</td>
+                    <td>${activity.type || 'Activity'}</td>
+                    <td>${activity.playerName || 'Unknown'}</td>
+                    <td>Rs. ${activity.amount || 0}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function displayEmptyActivity() {
+            const tbody = document.getElementById('recentActivity');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #64748B; padding: 2rem;">
+                        No recent activity
+                    </td>
+                </tr>
+            `;
+        }
+
+        function displayEmptyTable(tableId, message) {
+            const tbody = document.getElementById(tableId);
+            const colSpan = tbody.closest('table').querySelectorAll('th').length;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="${colSpan}" style="text-align: center; color: #64748B; padding: 2rem;">
+                        ${message}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function getTimeAgo(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            if (minutes < 1) return 'Just now';
+            if (minutes < 60) return `${minutes} mins ago`;
+            if (hours < 24) return `${hours} hours ago`;
+            return `${days} days ago`;
+        }
+
         // Update metrics
         function updateMetrics() {
             document.getElementById('totalTournaments').textContent = tournaments.length;
             document.getElementById('totalPlayers').textContent = players.length.toLocaleString();
             document.getElementById('onlinePlayers').textContent = Math.floor(Math.random() * 100) + 50;
             
-            const totalBalance = players.reduce((sum, player) => sum + player.walletBalance, 0);
+            const totalBalance = players.reduce((sum, player) => sum + (player.walletBalance || 0), 0);
             document.getElementById('walletBalance').textContent = `Rs. ${totalBalance.toLocaleString()}`;
         }
 
@@ -1678,39 +1699,77 @@
         // Firebase Auth State Change
         auth.onAuthStateChanged(user => {
             if (user) {
-                // Load admin data
-                loadAdminData(user.uid);
+                // Check if user is admin
+                checkAdminAccess(user.uid);
             } else {
                 // Redirect to login
-                // For demo purposes, continuing without auth
+                showAdminLogin();
             }
         });
 
-        // Firestore functions
-        async function loadAdminData(adminId) {
+        async function checkAdminAccess(userId) {
             try {
-                // Load tournaments
-                const tournamentsSnapshot = await db.collection('tournaments').get();
-                const firestoreTournaments = [];
-                tournamentsSnapshot.forEach(doc => {
-                    firestoreTournaments.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Load players
-                const playersSnapshot = await db.collection('users').get();
-                const firestorePlayers = [];
-                playersSnapshot.forEach(doc => {
-                    firestorePlayers.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Update UI with real data
-                // tournaments = firestoreTournaments;
-                // players = firestorePlayers;
-                // loadTournaments();
-                // loadPlayers();
-                
+                const adminDoc = await db.collection('admins').doc(userId).get();
+                if (adminDoc.exists && adminDoc.data().role === 'admin') {
+                    // User is admin, load data
+                    loadAllData();
+                } else {
+                    // User is not admin
+                    showAccessDenied();
+                }
             } catch (error) {
-                console.error('Error loading admin data:', error);
+                console.error('Error checking admin access:', error);
+                showAccessDenied();
+            }
+        }
+
+        function showAdminLogin() {
+            document.body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-primary); flex-direction: column; text-align: center; padding: 2rem;">
+                    <i class="fas fa-shield-alt" style="font-size: 4rem; color: var(--accent-blue); margin-bottom: 2rem;"></i>
+                    <h1 style="color: var(--text-dark); margin-bottom: 1rem;">Admin Login Required</h1>
+                    <p style="color: #64748B; margin-bottom: 2rem;">Please sign in with your admin account to access the dashboard.</p>
+                    <button onclick="signInAsAdmin()" style="background: var(--accent-blue); color: white; border: none; padding: 1rem 2rem; border-radius: 10px; font-size: 1rem; cursor: pointer;">
+                        <i class="fas fa-sign-in-alt"></i> Admin Sign In
+                    </button>
+                </div>
+            `;
+        }
+
+        function showAccessDenied() {
+            document.body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-primary); flex-direction: column; text-align: center; padding: 2rem;">
+                    <i class="fas fa-ban" style="font-size: 4rem; color: var(--accent-red); margin-bottom: 2rem;"></i>
+                    <h1 style="color: var(--text-dark); margin-bottom: 1rem;">Access Denied</h1>
+                    <p style="color: #64748B; margin-bottom: 2rem;">You don't have permission to access this admin panel.</p>
+                    <button onclick="auth.signOut()" style="background: var(--accent-red); color: white; border: none; padding: 1rem 2rem; border-radius: 10px; font-size: 1rem; cursor: pointer;">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out
+                    </button>
+                </div>
+            `;
+        }
+
+        async function signInAsAdmin() {
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                await auth.signInWithPopup(provider);
+            } catch (error) {
+                console.error('Error signing in:', error);
+                alert('Failed to sign in. Please try again.');
+            }
+        }
+
+        // Add activity to Firebase
+        async function addActivity(type, playerName, amount) {
+            try {
+                await db.collection('activity').add({
+                    type: type,
+                    playerName: playerName,
+                    amount: amount,
+                    timestamp: Date.now()
+                });
+            } catch (error) {
+                console.error('Error adding activity:', error);
             }
         }
 
