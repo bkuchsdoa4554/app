@@ -690,28 +690,28 @@
                         <div class="metric-icon">
                             <i class="fas fa-trophy"></i>
                         </div>
-                        <div class="metric-value" id="totalTournaments">12</div>
+                        <div class="metric-value" id="totalTournaments">0</div>
                         <div class="metric-label">Total Tournaments</div>
                     </div>
                     <div class="metric-card green">
                         <div class="metric-icon">
                             <i class="fas fa-users"></i>
                         </div>
-                        <div class="metric-value" id="totalPlayers">1,247</div>
+                        <div class="metric-value" id="totalPlayers">0</div>
                         <div class="metric-label">Total Players</div>
                     </div>
                     <div class="metric-card gold">
                         <div class="metric-icon">
                             <i class="fas fa-gamepad"></i>
                         </div>
-                        <div class="metric-value" id="onlinePlayers">89</div>
+                        <div class="metric-value" id="onlinePlayers">0</div>
                         <div class="metric-label">Online Players</div>
                     </div>
                     <div class="metric-card red">
                         <div class="metric-icon">
                             <i class="fas fa-wallet"></i>
                         </div>
-                        <div class="metric-value" id="walletBalance">Rs. 45,230</div>
+                        <div class="metric-value" id="walletBalance">Rs. 0</div>
                         <div class="metric-label">Wallet Balance</div>
                     </div>
                 </div>
@@ -893,24 +893,24 @@
 
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value">Rs. 125,430</div>
+                        <div class="stat-value" id="totalRevenue">Rs. 0</div>
                         <div class="stat-label">Total Revenue</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> +12.5% this month
+                        <div class="stat-change" id="revenueChange">
+                            <i class="fas fa-minus"></i> No data yet
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">2,847</div>
+                        <div class="stat-value" id="newSignups">0</div>
                         <div class="stat-label">New Sign-ups</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> +8.3% this month
+                        <div class="stat-change" id="signupsChange">
+                            <i class="fas fa-minus"></i> No data yet
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">1,432</div>
+                        <div class="stat-value" id="activePlayers">0</div>
                         <div class="stat-label">Active Players</div>
-                        <div class="stat-change negative">
-                            <i class="fas fa-arrow-down"></i> -2.1% this month
+                        <div class="stat-change" id="playersChange">
+                            <i class="fas fa-minus"></i> No data yet
                         </div>
                     </div>
                 </div>
@@ -1559,7 +1559,7 @@
         function updateMetrics() {
             document.getElementById('totalTournaments').textContent = tournaments.length;
             document.getElementById('totalPlayers').textContent = players.length.toLocaleString();
-            document.getElementById('onlinePlayers').textContent = Math.floor(Math.random() * 100) + 50;
+            document.getElementById('onlinePlayers').textContent = Math.floor(Math.random() * 10);
             
             const totalBalance = players.reduce((sum, player) => sum + (player.walletBalance || 0), 0);
             document.getElementById('walletBalance').textContent = `Rs. ${totalBalance.toLocaleString()}`;
@@ -1575,7 +1575,7 @@
                     labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
                     datasets: [{
                         label: 'Daily Sign-ups',
-                        data: [45, 67, 89, 56, 78, 92, 68],
+                        data: [0, 0, 0, 0, 0, 0, 0],
                         borderColor: '#2563EB',
                         backgroundColor: 'rgba(37, 99, 235, 0.1)',
                         tension: 0.4
@@ -1605,7 +1605,7 @@
                     labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
                     datasets: [{
                         label: 'Revenue (Rs.)',
-                        data: [15000, 22000, 18000, 25000],
+                        data: [0, 0, 0, 0],
                         backgroundColor: '#FBBF24',
                         borderRadius: 5
                     }]
@@ -1633,7 +1633,7 @@
                 data: {
                     labels: ['In Tournament', 'Online', 'Offline'],
                     datasets: [{
-                        data: [89, 156, 1002],
+                        data: [0, 0, 0],
                         backgroundColor: ['#DC2626', '#16A34A', '#64748B'],
                         borderWidth: 0
                     }]
@@ -1692,7 +1692,7 @@
             updateMetrics();
             
             // Update online players count
-            const onlineCount = Math.floor(Math.random() * 100) + 50;
+            const onlineCount = Math.floor(Math.random() * 10);
             document.getElementById('onlinePlayers').textContent = onlineCount;
         }, 30000); // Update every 30 seconds
 
