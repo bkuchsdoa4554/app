@@ -671,9 +671,9 @@
                 </div>
                 <div class="header-right">
                     <span>Welcome, Admin</span>
-                    <div class="admin-avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
+                    <button onclick="signOut()" style="background: rgba(255,255,255,0.1); color: var(--text-dark); border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; margin-left: 1rem;">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out
+                    </button>
                 </div>
             </header>
 
@@ -1146,9 +1146,10 @@
                         <div style="background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: left;">
                             <h3 style="margin-bottom: 1rem; color: var(--accent-blue);">Admin Setup Instructions:</h3>
                             <ol style="line-height: 1.8; color: var(--text-dark);">
-                                <li>Complete Firebase setup (same as user app)</li>
+                                <li>Complete Firebase setup with Email/Password auth</li>
+                                <li>Create an account on the user app first</li>
                                 <li>Create an <strong>admins</strong> collection in Firestore</li>
-                                <li>Add a document with your Google user ID as the document ID</li>
+                                <li>Add a document with your user ID as the document ID</li>
                                 <li>Set the document data: <code>{ "role": "admin" }</code></li>
                                 <li>Replace the firebaseConfig in this HTML file</li>
                             </ol>
@@ -1767,12 +1768,36 @@
         function showAdminLogin() {
             document.body.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-primary); flex-direction: column; text-align: center; padding: 2rem;">
-                    <i class="fas fa-shield-alt" style="font-size: 4rem; color: var(--accent-blue); margin-bottom: 2rem;"></i>
-                    <h1 style="color: var(--text-dark); margin-bottom: 1rem;">Admin Login Required</h1>
-                    <p style="color: #64748B; margin-bottom: 2rem;">Please sign in with your admin account to access the dashboard.</p>
-                    <button onclick="signInAsAdmin()" style="background: var(--accent-blue); color: white; border: none; padding: 1rem 2rem; border-radius: 10px; font-size: 1rem; cursor: pointer;">
-                        <i class="fas fa-sign-in-alt"></i> Admin Sign In
-                    </button>
+                    <div style="background: white; padding: 3rem; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 400px; width: 100%;">
+                        <i class="fas fa-shield-alt" style="font-size: 3rem; color: var(--accent-blue); margin-bottom: 2rem;"></i>
+                        <h1 style="color: var(--text-dark); margin-bottom: 1rem; font-size: 1.8rem;">Admin Panel</h1>
+                        <p style="color: #64748B; margin-bottom: 2rem;">Sign in with your admin credentials</p>
+                        
+                        <form onsubmit="signInAsAdmin(event)">
+                            <div style="margin-bottom: 1rem;">
+                                <input type="email" id="adminEmail" placeholder="Admin Email" required 
+                                       style="width: 100%; padding: 1rem; border: 2px solid var(--border); border-radius: 10px; font-size: 1rem;">
+                            </div>
+                            <div style="margin-bottom: 1.5rem;">
+                                <input type="password" id="adminPassword" placeholder="Password" required 
+                                       style="width: 100%; padding: 1rem; border: 2px solid var(--border); border-radius: 10px; font-size: 1rem;">
+                            </div>
+                            <button type="submit" style="width: 100%; background: var(--accent-blue); color: white; border: none; padding: 1rem; border-radius: 10px; font-size: 1rem; cursor: pointer; margin-bottom: 1rem;">
+                                <i class="fas fa-sign-in-alt"></i> Admin Sign In
+                            </button>
+                        </form>
+                        
+                        <div id="adminAuthMessage" style="margin-top: 1rem; padding: 1rem; border-radius: 10px; display: none;"></div>
+                        
+                        <div style="margin-top: 2rem; padding: 1rem; background: var(--bg-secondary); border-radius: 10px; text-align: left;">
+                            <h4 style="color: var(--accent-blue); margin-bottom: 0.5rem;">Admin Setup:</h4>
+                            <p style="font-size: 0.9rem; color: #64748B; line-height: 1.4;">
+                                1. Create an account on the user app first<br>
+                                2. Add your user ID to the 'admins' collection in Firestore<br>
+                                3. Set role: "admin" in the document
+                            </p>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -1790,38 +1815,59 @@
             `;
         }
 
-        async function signInAsAdmin() {
+        function showAdminAuthMessage(message, isError = false) {
+            const messageEl = document.getElementById('adminAuthMessage');
+            if (messageEl) {
+                messageEl.textContent = message;
+                messageEl.style.display = 'block';
+                messageEl.style.background = isError ? 'rgba(220, 38, 38, 0.1)' : 'rgba(34, 197, 94, 0.1)';
+                messageEl.style.color = isError ? '#DC2626' : '#16A34A';
+                messageEl.style.border = `1px solid ${isError ? '#DC2626' : '#16A34A'}`;
+            }
+        }
+
+        async function signInAsAdmin(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+            
             try {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                provider.addScope('email');
-                provider.addScope('profile');
+                showAdminAuthMessage('Signing in...', false);
                 
-                const result = await auth.signInWithPopup(provider);
+                const result = await auth.signInWithEmailAndPassword(email, password);
                 console.log('Admin sign-in successful:', result.user);
+                
+                showAdminAuthMessage('Verifying admin access...', false);
                 
                 // Don't reload immediately, let the auth state change handler manage the flow
             } catch (error) {
                 console.error('Error signing in:', error);
                 
-                // More specific error messages
                 let errorMessage = 'Failed to sign in. ';
                 switch (error.code) {
-                    case 'auth/popup-closed-by-user':
-                        errorMessage += 'Sign-in popup was closed. Please try again.';
+                    case 'auth/user-not-found':
+                        errorMessage += 'No account found with this email.';
                         break;
-                    case 'auth/popup-blocked':
-                        errorMessage += 'Sign-in popup was blocked by your browser. Please allow popups and try again.';
+                    case 'auth/wrong-password':
+                        errorMessage += 'Incorrect password.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage += 'Invalid email address.';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMessage += 'This account has been disabled.';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMessage += 'Too many failed attempts. Please try again later.';
                         break;
                     case 'auth/network-request-failed':
                         errorMessage += 'Network error. Please check your internet connection.';
                         break;
-                    case 'auth/invalid-api-key':
-                        errorMessage += 'Invalid Firebase configuration. Please check your API key.';
-                        break;
                     default:
-                        errorMessage += `Error: ${error.message}`;
+                        errorMessage += error.message;
                 }
-                alert(errorMessage);
+                showAdminAuthMessage(errorMessage, true);
             }
         }
 
@@ -1839,7 +1885,20 @@
             }
         }
 
+        // Sign out function
+        async function signOut() {
+            try {
+                await auth.signOut();
+                console.log('Admin signed out');
+                window.location.reload();
+            } catch (error) {
+                console.error('Error signing out:', error);
+                alert('Failed to sign out. Please try again.');
+            }
+        }
+
         // Export functions for global access
+        window.signOut = signOut;
         window.showSection = showSection;
         window.toggleSidebar = toggleSidebar;
         window.showCreateTournamentModal = showCreateTournamentModal;
@@ -1852,6 +1911,7 @@
         window.viewScreenshot = viewScreenshot;
         window.viewPlayer = viewPlayer;
         window.banPlayer = banPlayer;
+        window.signInAsAdmin = signInAsAdmin;
     </script>
 </body>
 </html>
