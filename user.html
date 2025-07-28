@@ -382,6 +382,182 @@
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        /* Notification Modal */
+        .notification-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .notification-modal.active {
+            display: flex;
+        }
+
+        .notification-content {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        .notification-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .notification-icon.success {
+            color: #10b981;
+        }
+
+        .notification-icon.error {
+            color: #ef4444;
+        }
+
+        .notification-icon.info {
+            color: #3b82f6;
+        }
+
+        .notification-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+        }
+
+        .notification-message {
+            color: #64748b;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .notification-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        /* Tournament Registration Card */
+        .registration-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .registration-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .registration-title {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .registration-status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-live {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-upcoming {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .status-completed {
+            background: #6b7280;
+            color: white;
+        }
+
+        .registration-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .room-details {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 2px dashed #e2e8f0;
+        }
+
+        .room-details.available {
+            background: #ecfdf5;
+            border-color: #10b981;
+        }
+
+        .room-title {
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .room-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .room-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .room-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;
+        }
+
+        .room-value {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
         }
 
         .modal-header {
@@ -622,9 +798,9 @@
                 </div>
 
                 <div class="profile-header">
-                    <h3>My Registrations</h3>
+                    <h3>My Tournament Registrations</h3>
                     <div id="userRegistrations">
-                        <p>No tournaments joined yet</p>
+                        <p>Loading your registrations...</p>
                     </div>
                 </div>
             </section>
@@ -1003,7 +1179,7 @@
         // Handle join tournament button click
         function handleJoinTournament(tournamentId) {
             if (!currentUser) {
-                alert('Please sign in first to join tournaments.');
+                showNotification('error', 'Authentication Required', 'Please sign in first to join tournaments.');
                 return;
             }
             
@@ -1014,7 +1190,7 @@
         function showJoinModal(tournamentId) {
             // Check if user is authenticated
             if (!currentUser) {
-                alert('Please sign in first to join tournaments.');
+                showNotification('error', 'Authentication Required', 'Please sign in first to join tournaments.');
                 return;
             }
             
@@ -1022,19 +1198,19 @@
             const tournament = tournaments.find(t => t.id === tournamentId);
             
             if (!tournament) {
-                alert('Tournament not found.');
+                showNotification('error', 'Tournament Not Found', 'The selected tournament could not be found.');
                 return;
             }
             
             // Check tournament status
             if (tournament.status !== 'live' && tournament.status !== 'upcoming') {
-                alert('This tournament is not available for registration.');
+                showNotification('warning', 'Tournament Unavailable', 'This tournament is not available for registration.');
                 return;
             }
             
             // Check if tournament is full
             if (tournament.currentPlayers >= tournament.maxPlayers) {
-                alert('This tournament is full.');
+                showNotification('warning', 'Tournament Full', 'This tournament has reached its maximum number of participants.');
                 return;
             }
             
@@ -1081,32 +1257,32 @@
             
             // Check if user is authenticated
             if (!currentUser) {
-                alert('Please sign in first to join tournaments.');
+                showNotification('error', 'Authentication Required', 'Please sign in first to join tournaments.');
                 return;
             }
             
             // Check if Firebase is initialized
             if (!db || !auth) {
-                alert('System not ready. Please refresh the page and try again.');
+                showNotification('error', 'System Error', 'System not ready. Please refresh the page and try again.');
                 return;
             }
             
             const tournament = tournaments.find(t => t.id === currentTournamentId);
             
             if (!tournament) {
-                alert('Tournament not found.');
+                showNotification('error', 'Tournament Not Found', 'The selected tournament could not be found.');
                 return;
             }
             
             if (userData.walletBalance < tournament.entryFee) {
-                alert('Insufficient wallet balance. Please top up first.');
+                showNotification('error', 'Insufficient Balance', `You need Rs. ${tournament.entryFee} to join this tournament. Please top up your wallet first.`);
                 return;
             }
 
             // Check if already registered
             const existingRegistration = userData.registrations.find(r => r.tournamentId === currentTournamentId);
             if (existingRegistration) {
-                alert('You are already registered for this tournament.');
+                showNotification('warning', 'Already Registered', 'You are already registered for this tournament.');
                 return;
             }
 
@@ -1115,7 +1291,7 @@
             const playerUID = document.getElementById('playerUID').value.trim();
             
             if (!playerName) {
-                alert('Please enter your player name.');
+                showNotification('error', 'Missing Information', 'Please enter your player name.');
                 return;
             }
 
@@ -1184,28 +1360,35 @@
                 console.log('Registration successful, updating UI...');
                 updateUserData();
                 await loadTournamentsFromFirebase(); // Refresh tournaments from Firebase
+                await loadUserRegistrations(currentUser.uid); // Refresh user registrations
                 closeModal('joinModal');
                 
-                // Show success message with room details
-                alert(`Successfully joined ${tournament.title}!\n\nRoom Details:\nRoom ID: ${tournament.roomId || 'TBA'}\nRoom Password: ${tournament.roomPass || 'TBA'}\n\nEntry Fee: Rs. ${tournament.entryFee}\nNew Balance: Rs. ${newBalance}`);
+                // Show success message
+                const roomDetails = (tournament.roomId && tournament.roomPass) ? 
+                    `Room ID: ${tournament.roomId}, Password: ${tournament.roomPass}` : 
+                    'Room details will be available 30 minutes before tournament time';
+                
+                showNotification('success', 'Successfully Joined!', 
+                    `You have joined ${tournament.title}. Entry fee Rs. ${tournament.entryFee} deducted. New balance: Rs. ${newBalance}. ${roomDetails}`);
                 
             } catch (error) {
                 console.error('Error joining tournament:', error);
                 console.error('Error details:', error.message);
                 
                 // Provide more specific error messages
-                let errorMessage = 'Failed to join tournament. ';
+                let errorTitle = 'Registration Failed';
+                let errorMessage = '';
                 if (error.code === 'permission-denied') {
-                    errorMessage += 'Permission denied. Please check your account status.';
+                    errorMessage = 'Permission denied. Please check your account status.';
                 } else if (error.code === 'not-found') {
-                    errorMessage += 'Tournament not found.';
+                    errorMessage = 'Tournament not found.';
                 } else if (error.code === 'unavailable') {
-                    errorMessage += 'Service temporarily unavailable. Please try again.';
+                    errorMessage = 'Service temporarily unavailable. Please try again.';
                 } else {
-                    errorMessage += 'Please try again or contact support.';
+                    errorMessage = 'Please try again or contact support if the problem persists.';
                 }
                 
-                alert(errorMessage);
+                showNotification('error', errorTitle, errorMessage);
             }
         });
 
@@ -1213,7 +1396,7 @@
             e.preventDefault();
             
             if (!selectedPaymentMethod) {
-                alert('Please select a payment method');
+                showNotification('warning', 'Payment Method Required', 'Please select a payment method (JazzCash or EasyPaisa).');
                 return;
             }
 
@@ -1222,7 +1405,7 @@
             const screenshotFile = document.getElementById('paymentScreenshot').files[0];
             
             if (!screenshotFile) {
-                alert('Please upload payment screenshot');
+                showNotification('warning', 'Screenshot Required', 'Please upload a payment screenshot for verification.');
                 return;
             }
             
@@ -1253,7 +1436,7 @@
                     timestamp: Date.now()
                 });
                 
-                alert('Payment submitted for verification. Your wallet will be updated once verified by admin.');
+                showNotification('success', 'Payment Submitted', 'Your payment has been submitted for verification. Your wallet will be updated once verified by admin.');
                 closeModal('topUpModal');
                 
                 // Reset form
@@ -1269,7 +1452,7 @@
                 
             } catch (error) {
                 console.error('Error submitting payment:', error);
-                alert('Failed to submit payment. Please try again.');
+                showNotification('error', 'Payment Failed', 'Failed to submit payment. Please check your connection and try again.');
             }
         });
 
@@ -1287,23 +1470,23 @@
             e.preventDefault();
             
             if (!selectedWithdrawMethod) {
-                alert('Please select a payment method');
+                showNotification('warning', 'Payment Method Required', 'Please select a payment method (JazzCash or EasyPaisa).');
                 return;
             }
 
             const amount = parseInt(document.getElementById('withdrawAmount').value);
             
             if (amount > userData.walletBalance) {
-                alert('Insufficient wallet balance');
+                showNotification('error', 'Insufficient Balance', `You can't withdraw Rs. ${amount}. Your current balance is Rs. ${userData.walletBalance}.`);
                 return;
             }
 
             try {
-                alert('Withdraw request submitted. Processing time: 24-48 hours.');
+                showNotification('success', 'Withdrawal Requested', 'Your withdrawal request has been submitted. Processing time: 24-48 hours.');
                 closeModal('withdrawModal');
             } catch (error) {
                 console.error('Error submitting withdraw request:', error);
-                alert('Failed to submit withdraw request. Please try again.');
+                showNotification('error', 'Withdrawal Failed', 'Failed to submit withdrawal request. Please try again.');
             }
         });
 
@@ -1323,7 +1506,9 @@
         function copyReferralLink() {
             const referralLink = `https://fftournaments.com/join?ref=${userData.referralCode}`;
             navigator.clipboard.writeText(referralLink).then(() => {
-                alert('Referral link copied to clipboard!');
+                showNotification('success', 'Link Copied!', 'Referral link has been copied to your clipboard. Share it with friends to earn rewards!');
+            }).catch(() => {
+                showNotification('error', 'Copy Failed', 'Could not copy link to clipboard. Please try again.');
             });
         }
 
@@ -1365,6 +1550,9 @@
                 
                 // Load tournaments after user is authenticated
                 await loadTournamentsFromFirebase();
+                
+                // Load user registrations
+                await loadUserRegistrations(user.uid);
                 
                 console.log('User setup complete');
             } else {
@@ -1708,6 +1896,179 @@
             }
         }
 
+        // Notification System
+        function showNotification(type, title, message, callback) {
+            const modal = document.getElementById('notificationModal');
+            const icon = document.getElementById('notificationIcon');
+            const titleEl = document.getElementById('notificationTitle');
+            const messageEl = document.getElementById('notificationMessage');
+            
+            // Set icon based on type
+            const icons = {
+                success: 'fas fa-check-circle',
+                error: 'fas fa-exclamation-circle',
+                info: 'fas fa-info-circle',
+                warning: 'fas fa-exclamation-triangle'
+            };
+            
+            icon.innerHTML = `<i class="${icons[type] || icons.info}"></i>`;
+            icon.className = `notification-icon ${type}`;
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            
+            // Store callback for when notification is closed
+            window.notificationCallback = callback;
+            
+            modal.classList.add('active');
+        }
+        
+        function closeNotification() {
+            const modal = document.getElementById('notificationModal');
+            modal.classList.remove('active');
+            
+            // Execute callback if provided
+            if (window.notificationCallback) {
+                window.notificationCallback();
+                window.notificationCallback = null;
+            }
+        }
+
+        // Load and display user registrations
+        async function loadUserRegistrations(userId) {
+            try {
+                console.log('Loading user registrations for:', userId);
+                
+                const snapshot = await db.collection('registrations')
+                    .where('userId', '==', userId)
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
+                const registrations = [];
+                const tournamentIds = [];
+                
+                snapshot.forEach(doc => {
+                    const registration = { id: doc.id, ...doc.data() };
+                    registrations.push(registration);
+                    tournamentIds.push(registration.tournamentId);
+                });
+                
+                console.log(`Found ${registrations.length} registrations`);
+                
+                // Get tournament details for each registration
+                const tournamentDetails = {};
+                if (tournamentIds.length > 0) {
+                    const tournamentsSnapshot = await db.collection('tournaments')
+                        .where(firebase.firestore.FieldPath.documentId(), 'in', tournamentIds)
+                        .get();
+                    
+                    tournamentsSnapshot.forEach(doc => {
+                        tournamentDetails[doc.id] = { id: doc.id, ...doc.data() };
+                    });
+                }
+                
+                displayUserRegistrations(registrations, tournamentDetails);
+                
+            } catch (error) {
+                console.error('Error loading user registrations:', error);
+                document.getElementById('userRegistrations').innerHTML = '<p>Error loading registrations. Please refresh the page.</p>';
+            }
+        }
+
+        function displayUserRegistrations(registrations, tournamentDetails) {
+            const container = document.getElementById('userRegistrations');
+            
+            if (registrations.length === 0) {
+                container.innerHTML = '<p>No tournaments joined yet. Join your first tournament to see it here!</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            registrations.forEach(registration => {
+                const tournament = tournamentDetails[registration.tournamentId];
+                if (!tournament) return;
+                
+                const registrationDate = new Date(registration.timestamp).toLocaleDateString();
+                const tournamentDate = tournament.datetime ? new Date(tournament.datetime).toLocaleDateString() : 'TBA';
+                const tournamentTime = tournament.datetime ? new Date(tournament.datetime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'TBA';
+                
+                // Determine if room details should be shown (for live tournaments or within 30 minutes of start time)
+                const showRoomDetails = tournament.status === 'live' || 
+                    (tournament.datetime && new Date(tournament.datetime).getTime() - Date.now() <= 30 * 60 * 1000);
+                
+                html += `
+                    <div class="registration-card">
+                        <div class="registration-header">
+                            <div class="registration-title">${tournament.title}</div>
+                            <div class="registration-status status-${tournament.status}">${tournament.status.toUpperCase()}</div>
+                        </div>
+                        <div class="registration-details">
+                            <div><i class="fas fa-calendar"></i> ${tournamentDate}</div>
+                            <div><i class="fas fa-clock"></i> ${tournamentTime}</div>
+                            <div><i class="fas fa-map"></i> ${tournament.map}</div>
+                            <div><i class="fas fa-trophy"></i> Rs. ${(tournament.prize || 0).toLocaleString()}</div>
+                            <div><i class="fas fa-coins"></i> Entry: Rs. ${registration.entryFee}</div>
+                            <div><i class="fas fa-calendar-plus"></i> Joined: ${registrationDate}</div>
+                        </div>
+                `;
+                
+                if (showRoomDetails && (tournament.roomId || tournament.roomPass)) {
+                    html += `
+                        <div class="room-details available">
+                            <div class="room-title">
+                                <i class="fas fa-gamepad"></i>
+                                Room Details Available
+                            </div>
+                            <div class="room-info">
+                                <div class="room-field">
+                                    <div class="room-label">Room ID</div>
+                                    <div class="room-value">${tournament.roomId || 'Not Set'}</div>
+                                </div>
+                                <div class="room-field">
+                                    <div class="room-label">Password</div>
+                                    <div class="room-value">${tournament.roomPass || 'Not Set'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (tournament.status === 'upcoming') {
+                    html += `
+                        <div class="room-details">
+                            <div class="room-title">
+                                <i class="fas fa-clock"></i>
+                                Room details will appear 30 minutes before tournament time
+                            </div>
+                        </div>
+                    `;
+                } else if (tournament.status === 'completed') {
+                    if (tournament.winnerName) {
+                        html += `
+                            <div class="room-details">
+                                <div class="room-title">
+                                    <i class="fas fa-crown"></i>
+                                    Tournament Completed
+                                </div>
+                                <p style="margin: 0; color: #64748b;">Winner: <strong>${tournament.winnerName}</strong></p>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="room-details">
+                                <div class="room-title">
+                                    <i class="fas fa-flag-checkered"></i>
+                                    Tournament Completed
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                html += '</div>';
+            });
+            
+            container.innerHTML = html;
+        }
+
         // Make functions globally accessible
         window.signOut = signOut;
         window.showSignInForm = showSignInForm;
@@ -1716,6 +2077,22 @@
         window.signUpWithEmail = signUpWithEmail;
         window.handleJoinTournament = handleJoinTournament;
         window.showJoinModal = showJoinModal;
+        window.showNotification = showNotification;
+        window.closeNotification = closeNotification;
     </script>
+
+    <!-- Notification Modal -->
+    <div id="notificationModal" class="notification-modal">
+        <div class="notification-content">
+            <div id="notificationIcon" class="notification-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div id="notificationTitle" class="notification-title">Success</div>
+            <div id="notificationMessage" class="notification-message">Operation completed successfully.</div>
+            <div class="notification-buttons">
+                <button class="join-button" onclick="closeNotification()">OK</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
