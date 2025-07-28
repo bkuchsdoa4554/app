@@ -1841,15 +1841,44 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
 
         async function loadPayments() {
             try {
-                const snapshot = await db.collection('payments').orderBy('timestamp', 'desc').get();
+                console.log('Loading payments from Firebase...');
+                
+                if (!db) {
+                    console.error('Database not initialized');
+                    return;
+                }
+                
+                // Try with ordering first, fallback without ordering if it fails
+                let snapshot;
+                try {
+                    snapshot = await db.collection('payments').orderBy('timestamp', 'desc').get();
+                } catch (orderError) {
+                    console.warn('Could not order by timestamp, loading without ordering:', orderError);
+                    snapshot = await db.collection('payments').get();
+                }
                 payments = [];
+                
+                console.log(`Found ${snapshot.size} payments`);
+                
                 snapshot.forEach(doc => {
-                    payments.push({ id: doc.id, ...doc.data() });
+                    const paymentData = { id: doc.id, ...doc.data() };
+                    payments.push(paymentData);
+                    console.log('Loaded payment:', paymentData.playerName, paymentData.amount, paymentData.status);
                 });
+                
+                // Sort by timestamp if available, otherwise by submitDate
+                payments.sort((a, b) => {
+                    const timeA = a.timestamp || new Date(a.submitDate).getTime() || 0;
+                    const timeB = b.timestamp || new Date(b.submitDate).getTime() || 0;
+                    return timeB - timeA; // Descending order (newest first)
+                });
+                
                 displayPayments();
+                console.log('Payments loaded successfully');
             } catch (error) {
                 console.error('Error loading payments:', error);
-                displayEmptyTable('paymentsTable', 'No payments found');
+                console.error('Error details:', error.message);
+                displayEmptyTable('paymentsTable', 'Error loading payments. Please refresh the page.');
             }
         }
 
