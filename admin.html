@@ -1741,9 +1741,9 @@
                     <td><span class="status-badge status-${tournament.status}">${tournament.status}</span></td>
                     <td>
                         <div class="action-buttons">
-                                                            <button class="btn btn-sm btn-secondary" onclick="editTournament('${tournament.id}')">Edit</button>
-                                <button class="btn btn-sm btn-primary" onclick="manageTournamentStatus('${tournament.id}')">Manage</button>
-                                <button class="btn btn-sm btn-danger" onclick="deleteTournament('${tournament.id}')">Delete</button>
+                            <button class="btn btn-sm btn-secondary" onclick="editTournament(&#39;${tournament.id}&#39;)">Edit</button>
+                            <button class="btn btn-sm btn-primary" onclick="manageTournamentStatus(&#39;${tournament.id}&#39;)">Manage</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteTournament(&#39;${tournament.id}&#39;)">Delete</button>
                         </div>
                     </td>
                 `;
@@ -1855,8 +1855,8 @@
                     <td>${joinDateDisplay}</td>
                     <td>
                         <div class="action-buttons">
-                            <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails('${player.id}')">View</button>
-                            <button class="btn btn-sm btn-warning" onclick="editUserBalance('${player.id}')">Edit Balance</button>
+                            <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails(&#39;${player.id}&#39;)">View</button>
+                            <button class="btn btn-sm btn-warning" onclick="editUserBalance(&#39;${player.id}&#39;)">Edit Balance</button>
                         </div>
                     </td>
                 `;
@@ -1950,8 +1950,8 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                      <td>${joinDateDisplay}</td>
                      <td>
                          <div class="action-buttons">
-                             <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails('${player.id}')">View</button>
-                             <button class="btn btn-sm btn-warning" onclick="editUserBalance('${player.id}')">Edit Balance</button>
+                             <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails(&#39;${player.id}&#39;)">View</button>
+                             <button class="btn btn-sm btn-warning" onclick="editUserBalance(&#39;${player.id}&#39;)">Edit Balance</button>
                          </div>
                      </td>
                  `;
@@ -2216,6 +2216,29 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                     showNotification('error', 'Rejection Failed', 'Failed to reject payment. Please try again.');
                 }
             }
+        }
+
+        function viewPayment(id) {
+            const payment = payments.find(p => p.id === id);
+            if (!payment) {
+                showNotification('error', 'Payment Not Found', 'The requested payment could not be found.');
+                return;
+            }
+            
+            const paymentDetails = `
+                Payment ID: ${payment.id}<br>
+                Player: ${payment.playerName}<br>
+                Amount: Rs. ${payment.amount}<br>
+                Method: ${payment.method}<br>
+                Transaction ID: ${payment.transactionId}<br>
+                Status: ${payment.status}<br>
+                Date: ${payment.timestamp ? new Date(payment.timestamp).toLocaleString() : 'N/A'}<br>
+                ${payment.approvedBy ? `Approved by: ${payment.approvedByName}` : ''}
+                ${payment.rejectedBy ? `Rejected by: ${payment.rejectedByName}` : ''}
+                ${payment.rejectionReason ? `Reason: ${payment.rejectionReason}` : ''}
+            `;
+            
+            showNotification('info', 'Payment Details', paymentDetails);
         }
 
         function viewScreenshot(screenshotUrl) {
@@ -2870,7 +2893,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                     <td>${lastUpdated}</td>
                     <td>
                         <div class="action-buttons">
-                            <button class="btn btn-sm btn-primary" onclick="editUserBalance('${player.id}')">
+                            <button class="btn btn-sm btn-primary" onclick="editUserBalance(&#39;${player.id}&#39;)">
                                 <i class="fas fa-edit"></i> Edit
                             </button>
                         </div>
@@ -3406,6 +3429,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
         window.deleteTournament = deleteTournament;
         window.approvePayment = approvePayment;
         window.rejectPayment = rejectPayment;
+        window.viewPayment = viewPayment;
         window.viewScreenshot = viewScreenshot;
         window.viewPlayer = viewPlayer;
         window.viewPlayerDetails = viewPlayerDetails;
