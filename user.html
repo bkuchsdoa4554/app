@@ -549,62 +549,8 @@
                     </button>
                 </div>
 
-                <div class="tournaments-grid">
-                    <div class="tournament-card">
-                        <div class="tournament-header">
-                            <h3 class="tournament-title">🏆 Evening Clash</h3>
-                            <span class="tournament-status status-live">LIVE</span>
-                        </div>
-                        <div class="tournament-details">
-                            <div class="detail-item">
-                                <i class="fas fa-clock"></i>
-                                <span>6:00 PM</span>
-                            </div>
-                            <div class="detail-item">
-                                <i class="fas fa-map"></i>
-                                <span>Bermuda</span>
-                            </div>
-                            <div class="detail-item">
-                                <i class="fas fa-trophy"></i>
-                                <span>Rs. 5,000</span>
-                            </div>
-                            <div class="detail-item">
-                                <i class="fas fa-users"></i>
-                                <span>45/100</span>
-                            </div>
-                        </div>
-                        <button class="join-button" onclick="showJoinModal('evening-clash')">
-                            Join Now - Rs. 50
-                        </button>
-                    </div>
-
-                    <div class="tournament-card">
-                        <div class="tournament-header">
-                            <h3 class="tournament-title">⚡ Speed Battle</h3>
-                            <span class="tournament-status status-upcoming">UPCOMING</span>
-                        </div>
-                        <div class="tournament-details">
-                            <div class="detail-item">
-                                <i class="fas fa-clock"></i>
-                                <span>8:00 PM</span>
-                            </div>
-                            <div class="detail-item">
-                                <i class="fas fa-map"></i>
-                                <span>Kalahari</span>
-                            </div>
-                            <div class="detail-item">
-                                <i class="fas fa-trophy"></i>
-                                <span>Rs. 3,000</span>
-                            </div>
-                            <div class="detail-item">
-                                <i class="fas fa-users"></i>
-                                <span>12/50</span>
-                            </div>
-                        </div>
-                        <button class="join-button" onclick="showJoinModal('speed-battle')">
-                            Join Now - Rs. 30
-                        </button>
-                    </div>
+                <div class="tournaments-grid" id="homeTournaments">
+                    <!-- Featured tournaments will be loaded here from Firebase -->
                 </div>
             </section>
 
@@ -625,10 +571,10 @@
             <section id="referral" class="section">
                 <div class="referral-card">
                     <h2>🎁 Refer & Earn</h2>
-                    <p>Invite friends and earn Rs. 25 for each successful referral!</p>
+                    <p>Invite friends and earn bonus for each successful referral!</p>
                     
                     <div class="referral-code">
-                        <span id="userReferralCode">REF123ABC</span>
+                        <span id="userReferralCode">Loading...</span>
                     </div>
                     
                     <div class="share-buttons">
@@ -656,8 +602,8 @@
                     <div class="profile-avatar">
                         <i class="fas fa-user"></i>
                     </div>
-                    <h2 id="userName">Player Name</h2>
-                    <p>Free Fire UID: <span id="userUID">123456789</span></p>
+                    <h2 id="userName">Loading...</h2>
+                    <p>Free Fire UID: <span id="userUID">Not Set</span></p>
                     <p>Wallet Balance: Rs. <span id="profileWalletBalance">0</span></p>
                 </div>
 
@@ -811,76 +757,21 @@
         let selectedWithdrawMethod = null;
         let currentTournamentId = null;
 
-        // Sample data
-        const tournaments = [
-            {
-                id: 'evening-clash',
-                title: '🏆 Evening Clash',
-                time: '6:00 PM',
-                map: 'Bermuda',
-                prize: 5000,
-                entryFee: 50,
-                maxPlayers: 100,
-                currentPlayers: 45,
-                status: 'live',
-                roomId: '12345',
-                roomPass: 'abcde'
-            },
-            {
-                id: 'speed-battle',
-                title: '⚡ Speed Battle',
-                time: '8:00 PM',
-                map: 'Kalahari',
-                prize: 3000,
-                entryFee: 30,
-                maxPlayers: 50,
-                currentPlayers: 12,
-                status: 'upcoming',
-                roomId: '67890',
-                roomPass: 'fghij'
-            },
-            {
-                id: 'night-warriors',
-                title: '🌙 Night Warriors',
-                time: '10:00 PM',
-                map: 'Purgatory',
-                prize: 8000,
-                entryFee: 75,
-                maxPlayers: 80,
-                currentPlayers: 67,
-                status: 'live',
-                roomId: '54321',
-                roomPass: 'klmno'
-            },
-            {
-                id: 'morning-rush',
-                title: '☀️ Morning Rush',
-                time: '9:00 AM',
-                map: 'Bermuda',
-                prize: 2000,
-                entryFee: 25,
-                maxPlayers: 40,
-                currentPlayers: 40,
-                status: 'past',
-                roomId: '98765',
-                roomPass: 'pqrst'
-            }
-        ];
-
-        // User data
+        // Data arrays - will be populated from Firebase
+        let tournaments = [];
         let userData = {
-            name: 'Player Name',
-            uid: '123456789',
-            walletBalance: 500,
-            referralCode: 'REF123ABC',
-            referralEarnings: 125,
+            name: '',
+            uid: '',
+            walletBalance: 0,
+            referralCode: '',
+            referralEarnings: 0,
             registrations: []
         };
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
+            loadTournamentsFromFirebase();
             updateUserData();
-            filterTournaments('live');
         });
 
         // Navigation functions
@@ -915,14 +806,65 @@
             displayTournaments(filteredTournaments);
         }
 
+        // Load tournaments from Firebase
+        async function loadTournamentsFromFirebase() {
+            try {
+                const snapshot = await db.collection('tournaments').orderBy('datetime', 'desc').get();
+                tournaments = [];
+                snapshot.forEach(doc => {
+                    tournaments.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Display live tournaments by default
+                filterTournaments('live');
+                
+                // Load featured tournaments for home page
+                loadFeaturedTournaments();
+            } catch (error) {
+                console.error('Error loading tournaments:', error);
+                displayEmptyState('tournamentsGrid', 'No tournaments available');
+            }
+        }
+
+        function loadFeaturedTournaments() {
+            const featuredTournaments = tournaments.filter(t => t.status === 'live' || t.status === 'upcoming').slice(0, 2);
+            const homeGrid = document.getElementById('homeTournaments');
+            homeGrid.innerHTML = '';
+
+            if (featuredTournaments.length === 0) {
+                displayEmptyState('homeTournaments', 'No active tournaments');
+                return;
+            }
+
+            featuredTournaments.forEach(tournament => {
+                const card = createTournamentCard(tournament);
+                homeGrid.appendChild(card);
+            });
+        }
+
         function displayTournaments(tournamentsToShow) {
             const grid = document.getElementById('tournamentsGrid');
             grid.innerHTML = '';
+
+            if (tournamentsToShow.length === 0) {
+                displayEmptyState('tournamentsGrid', 'No tournaments found');
+                return;
+            }
 
             tournamentsToShow.forEach(tournament => {
                 const card = createTournamentCard(tournament);
                 grid.appendChild(card);
             });
+        }
+
+        function displayEmptyState(containerId, message) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `
+                <div style="text-align: center; padding: 3rem; color: #64748B;">
+                    <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p style="font-size: 1.2rem;">${message}</p>
+                </div>
+            `;
         }
 
         function createTournamentCard(tournament) {
@@ -1139,11 +1081,52 @@
                 currentUser = user;
                 // Load user data from Firestore
                 loadUserData(user.uid);
+                // Generate referral code if user doesn't have one
+                generateReferralCodeIfNeeded(user.uid);
             } else {
                 // Redirect to login or show login modal
-                // For demo purposes, using sample data
+                showAuthRequired();
             }
         });
+
+        function showAuthRequired() {
+            // Show authentication required message
+            document.body.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-primary); flex-direction: column; text-align: center; padding: 2rem;">
+                    <i class="fas fa-lock" style="font-size: 4rem; color: var(--accent-blue); margin-bottom: 2rem;"></i>
+                    <h1 style="color: var(--text-dark); margin-bottom: 1rem;">Authentication Required</h1>
+                    <p style="color: #64748B; margin-bottom: 2rem;">Please sign in to access the tournament platform.</p>
+                    <button onclick="signInWithGoogle()" style="background: var(--accent-blue); color: white; border: none; padding: 1rem 2rem; border-radius: 10px; font-size: 1rem; cursor: pointer;">
+                        <i class="fab fa-google"></i> Sign in with Google
+                    </button>
+                </div>
+            `;
+        }
+
+        async function signInWithGoogle() {
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                await auth.signInWithPopup(provider);
+            } catch (error) {
+                console.error('Error signing in:', error);
+                alert('Failed to sign in. Please try again.');
+            }
+        }
+
+        async function generateReferralCodeIfNeeded(userId) {
+            try {
+                const userDoc = await db.collection('users').doc(userId).get();
+                if (!userDoc.exists || !userDoc.data().referralCode) {
+                    const referralCode = 'REF' + Math.random().toString(36).substr(2, 6).toUpperCase();
+                    await db.collection('users').doc(userId).update({
+                        referralCode: referralCode
+                    });
+                    userData.referralCode = referralCode;
+                }
+            } catch (error) {
+                console.error('Error generating referral code:', error);
+            }
+        }
 
         // Firestore functions
         async function joinTournament(tournId, userId) {
@@ -1185,10 +1168,42 @@
                 const userDoc = await db.collection('users').doc(userId).get();
                 if (userDoc.exists) {
                     userData = { ...userData, ...userDoc.data() };
-                    updateUserData();
+                } else {
+                    // Create new user document
+                    userData = {
+                        name: currentUser.displayName || 'Player',
+                        email: currentUser.email,
+                        uid: '',
+                        walletBalance: 0,
+                        referralCode: '',
+                        referralEarnings: 0,
+                        registrations: [],
+                        joinDate: new Date().toISOString()
+                    };
+                    await db.collection('users').doc(userId).set(userData);
                 }
+                
+                // Load user registrations
+                await loadUserRegistrations(userId);
+                updateUserData();
             } catch (error) {
                 console.error('Error loading user data:', error);
+            }
+        }
+
+        async function loadUserRegistrations(userId) {
+            try {
+                const snapshot = await db.collection('registrations')
+                    .where('userId', '==', userId)
+                    .orderBy('timestamp', 'desc')
+                    .get();
+                
+                userData.registrations = [];
+                snapshot.forEach(doc => {
+                    userData.registrations.push({ id: doc.id, ...doc.data() });
+                });
+            } catch (error) {
+                console.error('Error loading user registrations:', error);
             }
         }
 
