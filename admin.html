@@ -1228,6 +1228,77 @@
         </div>
     </div>
 
+    <!-- Tournament Status Management Modal -->
+    <div id="tournamentStatusModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Manage Tournament Status</h3>
+                <button class="close-button" onclick="closeModal('tournamentStatusModal')">&times;</button>
+            </div>
+            <div id="tournamentStatusContent">
+                <div class="form-group">
+                    <label class="form-label">Tournament</label>
+                    <input type="text" class="form-input" id="statusTournamentTitle" readonly style="background: #f3f4f6;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Current Status</label>
+                    <input type="text" class="form-input" id="statusCurrentStatus" readonly style="background: #f3f4f6;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Update Status</label>
+                    <select class="form-select" id="statusNewStatus" onchange="toggleWinnerSelection()">
+                        <option value="">Select new status...</option>
+                        <option value="upcoming">Upcoming</option>
+                        <option value="live">Live</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                
+                <!-- Winner Selection (only for completed status) -->
+                <div id="winnerSelectionSection" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label">Select Winner</label>
+                        <select class="form-select" id="tournamentWinner">
+                            <option value="">Choose winner...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Prize Amount (Rs.)</label>
+                        <input type="number" class="form-input" id="winnerPrizeAmount" readonly style="background: #f0fdf4;">
+                    </div>
+                </div>
+                
+                <!-- Tournament Participants -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h4 class="card-title">Registered Players (<span id="participantCount">0</span>)</h4>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Player Name</th>
+                                    <th>Free Fire UID</th>
+                                    <th>Registration Date</th>
+                                    <th>Entry Fee</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tournamentParticipants">
+                                <!-- Participants will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="action-buttons" style="margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('tournamentStatusModal')">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="updateTournamentStatus()">Update Status</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
@@ -1299,6 +1370,8 @@
         let recentActivity = [];
         let balanceHistory = [];
         let currentAdmin = null;
+        let currentTournamentForStatus = null;
+        let tournamentParticipants = [];
 
         // Initialize admin panel
         document.addEventListener('DOMContentLoaded', function() {
@@ -1398,8 +1471,9 @@
                     <td><span class="status-badge status-${tournament.status}">${tournament.status}</span></td>
                     <td>
                         <div class="action-buttons">
-                            <button class="btn btn-sm btn-secondary" onclick="editTournament('${tournament.id}')">Edit</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteTournament('${tournament.id}')">Delete</button>
+                                                            <button class="btn btn-sm btn-secondary" onclick="editTournament('${tournament.id}')">Edit</button>
+                                <button class="btn btn-sm btn-primary" onclick="manageTournamentStatus('${tournament.id}')">Manage</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteTournament('${tournament.id}')">Delete</button>
                         </div>
                     </td>
                 `;
@@ -1546,21 +1620,107 @@
         }
 
         // Payment actions
-        function approvePayment(id) {
+        async function approvePayment(id) {
             const payment = payments.find(p => p.id === id);
-            if (payment) {
-                payment.status = 'approved';
-                loadPayments();
-                alert(`Payment of Rs. ${payment.amount} approved for ${payment.playerName}`);
+            if (!payment) {
+                alert('Payment not found');
+                return;
+            }
+            
+            if (confirm(`Approve payment of Rs. ${payment.amount} for ${payment.playerName}?`)) {
+                try {
+                    // Update payment status
+                    await db.collection('payments').doc(id).update({
+                        status: 'approved',
+                        approvedBy: auth.currentUser.uid,
+                        approvedByName: auth.currentUser.displayName || auth.currentUser.email,
+                        approvedAt: Date.now()
+                    });
+                    
+                    // Find user and update balance
+                    const user = players.find(p => p.id === payment.userId);
+                    if (user) {
+                        const newBalance = (user.walletBalance || 0) + payment.amount;
+                        
+                        // Update user balance
+                        await db.collection('users').doc(payment.userId).update({
+                            walletBalance: newBalance,
+                            lastBalanceUpdate: Date.now()
+                        });
+                        
+                        // Add to balance history
+                        await db.collection('balanceHistory').add({
+                            userId: payment.userId,
+                            playerName: user.name,
+                            playerEmail: user.email,
+                            type: 'add',
+                            amount: payment.amount,
+                            previousBalance: user.walletBalance || 0,
+                            newBalance: newBalance,
+                            reason: `Payment approval - ${payment.method} ${payment.transactionId}`,
+                            adminId: auth.currentUser.uid,
+                            adminName: auth.currentUser.displayName || auth.currentUser.email,
+                            timestamp: Date.now()
+                        });
+                        
+                        // Update local data
+                        user.walletBalance = newBalance;
+                        payment.status = 'approved';
+                        
+                        // Add activity log
+                        await addActivity('Payment Approved', user.name, payment.amount);
+                        
+                        // Refresh displays
+                        await loadPayments();
+                        displayPayments();
+                        displayBalanceUsers();
+                        updateMetrics();
+                        
+                        alert(`Payment approved successfully!\nPlayer: ${payment.playerName}\nAmount: Rs. ${payment.amount}\nNew Balance: Rs. ${newBalance.toLocaleString()}`);
+                    }
+                } catch (error) {
+                    console.error('Error approving payment:', error);
+                    alert('Failed to approve payment. Please try again.');
+                }
             }
         }
 
-        function rejectPayment(id) {
+        async function rejectPayment(id) {
             const payment = payments.find(p => p.id === id);
-            if (payment) {
-                payment.status = 'rejected';
-                loadPayments();
-                alert(`Payment of Rs. ${payment.amount} rejected for ${payment.playerName}`);
+            if (!payment) {
+                alert('Payment not found');
+                return;
+            }
+            
+            const reason = prompt('Enter reason for rejection:');
+            if (reason === null) return; // User cancelled
+            
+            if (confirm(`Reject payment of Rs. ${payment.amount} for ${payment.playerName}?`)) {
+                try {
+                    // Update payment status
+                    await db.collection('payments').doc(id).update({
+                        status: 'rejected',
+                        rejectedBy: auth.currentUser.uid,
+                        rejectedByName: auth.currentUser.displayName || auth.currentUser.email,
+                        rejectedAt: Date.now(),
+                        rejectionReason: reason
+                    });
+                    
+                    // Update local data
+                    payment.status = 'rejected';
+                    
+                    // Add activity log
+                    await addActivity('Payment Rejected', payment.playerName, payment.amount);
+                    
+                    // Refresh displays
+                    await loadPayments();
+                    displayPayments();
+                    
+                    alert(`Payment rejected.\nPlayer: ${payment.playerName}\nAmount: Rs. ${payment.amount}\nReason: ${reason}`);
+                } catch (error) {
+                    console.error('Error rejecting payment:', error);
+                    alert('Failed to reject payment. Please try again.');
+                }
             }
         }
 
@@ -2278,6 +2438,227 @@
             }, 1000);
         });
 
+        // Tournament Status Management Functions
+        async function manageTournamentStatus(tournamentId) {
+            currentTournamentForStatus = tournaments.find(t => t.id === tournamentId);
+            if (!currentTournamentForStatus) {
+                alert('Tournament not found');
+                return;
+            }
+            
+            // Load tournament participants
+            await loadTournamentParticipants(tournamentId);
+            
+            // Populate modal
+            document.getElementById('statusTournamentTitle').value = currentTournamentForStatus.title;
+            document.getElementById('statusCurrentStatus').value = currentTournamentForStatus.status.toUpperCase();
+            document.getElementById('statusNewStatus').value = '';
+            document.getElementById('winnerPrizeAmount').value = currentTournamentForStatus.prize;
+            
+            // Show participant count
+            document.getElementById('participantCount').textContent = tournamentParticipants.length;
+            
+            // Display participants
+            displayTournamentParticipants();
+            
+            // Populate winner dropdown
+            populateWinnerDropdown();
+            
+            // Hide winner selection initially
+            document.getElementById('winnerSelectionSection').style.display = 'none';
+            
+            // Show modal
+            document.getElementById('tournamentStatusModal').classList.add('active');
+        }
+
+        async function loadTournamentParticipants(tournamentId) {
+            try {
+                const snapshot = await db.collection('registrations')
+                    .where('tournamentId', '==', tournamentId)
+                    .orderBy('timestamp', 'asc')
+                    .get();
+                
+                tournamentParticipants = [];
+                snapshot.forEach(doc => {
+                    tournamentParticipants.push({ id: doc.id, ...doc.data() });
+                });
+            } catch (error) {
+                console.error('Error loading tournament participants:', error);
+                tournamentParticipants = [];
+            }
+        }
+
+        function displayTournamentParticipants() {
+            const tbody = document.getElementById('tournamentParticipants');
+            tbody.innerHTML = '';
+            
+            if (tournamentParticipants.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #64748B; padding: 2rem;">
+                            No participants yet
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tournamentParticipants.forEach(participant => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${participant.playerName || 'Unknown'}</td>
+                    <td>${participant.playerUID || 'N/A'}</td>
+                    <td>${new Date(participant.timestamp).toLocaleDateString()}</td>
+                    <td>Rs. ${participant.entryFee || 0}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function populateWinnerDropdown() {
+            const select = document.getElementById('tournamentWinner');
+            select.innerHTML = '<option value="">Choose winner...</option>';
+            
+            tournamentParticipants.forEach(participant => {
+                const option = document.createElement('option');
+                option.value = participant.userId;
+                option.textContent = `${participant.playerName} (${participant.playerUID})`;
+                option.dataset.playerName = participant.playerName;
+                option.dataset.playerUID = participant.playerUID;
+                select.appendChild(option);
+            });
+        }
+
+        function toggleWinnerSelection() {
+            const newStatus = document.getElementById('statusNewStatus').value;
+            const winnerSection = document.getElementById('winnerSelectionSection');
+            
+            if (newStatus === 'completed') {
+                winnerSection.style.display = 'block';
+            } else {
+                winnerSection.style.display = 'none';
+            }
+        }
+
+        async function updateTournamentStatus() {
+            const newStatus = document.getElementById('statusNewStatus').value;
+            
+            if (!newStatus) {
+                alert('Please select a new status');
+                return;
+            }
+            
+            if (!currentTournamentForStatus) {
+                alert('Tournament not found');
+                return;
+            }
+            
+            let winnerId = null;
+            let winnerName = null;
+            let winnerUID = null;
+            
+            // If completing tournament, check for winner selection
+            if (newStatus === 'completed') {
+                winnerId = document.getElementById('tournamentWinner').value;
+                if (!winnerId) {
+                    alert('Please select a winner for completed tournament');
+                    return;
+                }
+                
+                const selectedOption = document.getElementById('tournamentWinner').selectedOptions[0];
+                winnerName = selectedOption.dataset.playerName;
+                winnerUID = selectedOption.dataset.playerUID;
+                
+                if (!confirm(`Confirm tournament completion?\n\nWinner: ${winnerName}\nPrize: Rs. ${currentTournamentForStatus.prize}\n\nThis will add the prize amount to winner's wallet.`)) {
+                    return;
+                }
+            } else {
+                if (!confirm(`Update tournament status to "${newStatus.toUpperCase()}"?`)) {
+                    return;
+                }
+            }
+            
+            try {
+                // Update tournament status
+                const updateData = {
+                    status: newStatus,
+                    statusUpdatedAt: Date.now(),
+                    statusUpdatedBy: auth.currentUser.uid,
+                    statusUpdatedByName: auth.currentUser.displayName || auth.currentUser.email
+                };
+                
+                // Add winner information if completed
+                if (newStatus === 'completed' && winnerId) {
+                    updateData.winnerId = winnerId;
+                    updateData.winnerName = winnerName;
+                    updateData.winnerUID = winnerUID;
+                    updateData.prizeAwarded = currentTournamentForStatus.prize;
+                    updateData.completedAt = Date.now();
+                }
+                
+                await db.collection('tournaments').doc(currentTournamentForStatus.id).update(updateData);
+                
+                // If tournament completed, award prize to winner
+                if (newStatus === 'completed' && winnerId) {
+                    const winner = players.find(p => p.id === winnerId);
+                    if (winner) {
+                        const newBalance = (winner.walletBalance || 0) + currentTournamentForStatus.prize;
+                        
+                        // Update winner's balance
+                        await db.collection('users').doc(winnerId).update({
+                            walletBalance: newBalance,
+                            lastBalanceUpdate: Date.now()
+                        });
+                        
+                        // Add to balance history
+                        await db.collection('balanceHistory').add({
+                            userId: winnerId,
+                            playerName: winnerName,
+                            playerEmail: winner.email,
+                            type: 'add',
+                            amount: currentTournamentForStatus.prize,
+                            previousBalance: winner.walletBalance || 0,
+                            newBalance: newBalance,
+                            reason: `Tournament Prize - ${currentTournamentForStatus.title}`,
+                            adminId: auth.currentUser.uid,
+                            adminName: auth.currentUser.displayName || auth.currentUser.email,
+                            timestamp: Date.now()
+                        });
+                        
+                        // Update local data
+                        winner.walletBalance = newBalance;
+                        
+                        // Add activity log
+                        await addActivity('Prize Awarded', winnerName, currentTournamentForStatus.prize);
+                    }
+                }
+                
+                // Update local tournament data
+                currentTournamentForStatus.status = newStatus;
+                if (winnerId) {
+                    currentTournamentForStatus.winnerId = winnerId;
+                    currentTournamentForStatus.winnerName = winnerName;
+                    currentTournamentForStatus.winnerUID = winnerUID;
+                }
+                
+                // Refresh displays
+                displayTournaments();
+                updateMetrics();
+                
+                closeModal('tournamentStatusModal');
+                
+                let successMessage = `Tournament status updated to "${newStatus.toUpperCase()}"`;
+                if (newStatus === 'completed' && winnerId) {
+                    successMessage += `\n\nWinner: ${winnerName}\nPrize Awarded: Rs. ${currentTournamentForStatus.prize.toLocaleString()}`;
+                }
+                alert(successMessage);
+                
+            } catch (error) {
+                console.error('Error updating tournament status:', error);
+                alert('Failed to update tournament status. Please try again.');
+            }
+        }
+
         // Sign out function
         async function signOut() {
             try {
@@ -2308,6 +2689,9 @@
         window.showAddBalanceModal = showAddBalanceModal;
         window.editUserBalance = editUserBalance;
         window.updateBalanceActionUI = updateBalanceActionUI;
+        window.manageTournamentStatus = manageTournamentStatus;
+        window.toggleWinnerSelection = toggleWinnerSelection;
+        window.updateTournamentStatus = updateTournamentStatus;
     </script>
 </body>
 </html>
