@@ -1532,6 +1532,87 @@
         // Initialize admin panel
         document.addEventListener('DOMContentLoaded', function() {
             loadAllData();
+            
+            // Initialize balance form event listeners after a delay
+            setTimeout(() => {
+                const userSelect = document.getElementById('balanceUserId');
+                const amountInput = document.getElementById('balanceAmount');
+                const balanceForm = document.getElementById('addBalanceForm');
+                
+                if (userSelect) {
+                    userSelect.addEventListener('change', function() {
+                        const selectedOption = this.options[this.selectedIndex];
+                        if (selectedOption && selectedOption.dataset.balance) {
+                            document.getElementById('currentBalance').value = `Rs. ${parseInt(selectedOption.dataset.balance).toLocaleString()}`;
+                            updateBalancePreview();
+                        }
+                    });
+                }
+                
+                if (amountInput) {
+                    amountInput.addEventListener('input', updateBalancePreview);
+                }
+                
+                if (balanceForm) {
+                    balanceForm.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+                        
+                        const userId = document.getElementById('balanceUserId').value;
+                        const actionType = document.getElementById('balanceActionType').value;
+                        const amount = parseFloat(document.getElementById('balanceAmount').value);
+                        const reason = document.getElementById('balanceReason').value;
+                        
+                        if (!userId || !actionType || amount < 0 || !reason) {
+                            showNotification('warning', 'Invalid Input', 'Please fill all fields correctly');
+                            return;
+                        }
+                        
+                        try {
+                            const user = players.find(p => p.id === userId);
+                            if (!user) {
+                                showNotification('error', 'User Not Found', 'The selected user could not be found.');
+                                return;
+                            }
+                            
+                            const currentBalance = user.walletBalance || 0;
+                            let newBalance = currentBalance;
+                            
+                            switch(actionType) {
+                                case 'add':
+                                    newBalance = currentBalance + amount;
+                                    break;
+                                case 'subtract':
+                                    newBalance = Math.max(0, currentBalance - amount);
+                                    break;
+                                case 'set':
+                                    newBalance = amount;
+                                    break;
+                            }
+                            
+                            // Update user balance
+                            user.walletBalance = newBalance;
+                            
+                            // Log activity
+                            await addActivity(
+                                `Balance ${actionType}`,
+                                user.name,
+                                actionType === 'subtract' ? -amount : amount
+                            );
+                            
+                            displayBalanceUsers();
+                            displayBalanceHistory();
+                            updateMetrics();
+                            
+                            closeModal('addBalanceModal');
+                            showNotification('success', 'Balance Updated', `Balance updated successfully!<br>User: ${user.name}<br>New Balance: Rs. ${newBalance.toLocaleString()}`);
+                            
+                        } catch (error) {
+                            console.error('Error updating balance:', error);
+                            showNotification('error', 'Update Failed', 'Failed to update balance. Please try again.');
+                        }
+                    });
+                }
+            }, 1000);
         });
 
         async function loadAllData() {
@@ -1939,7 +2020,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                     <td>${payment.transactionId || 'N/A'}</td>
                     <td>
                         ${payment.screenshotUrl ? 
-                            `<img src="${payment.screenshotUrl}" alt="Payment Screenshot" class="payment-screenshot" onclick="viewScreenshot('${payment.screenshotUrl}')">` :
+                            '<img src="' + payment.screenshotUrl + '" alt="Payment Screenshot" class="payment-screenshot" onclick="viewScreenshot(\'' + payment.screenshotUrl + '\');">' :
                             'No screenshot'
                         }
                     </td>
@@ -1947,12 +2028,11 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                     <td><span class="status-badge status-${payment.status || 'pending'}">${payment.status || 'pending'}</span></td>
                     <td>
                         <div class="action-buttons">
-                            ${payment.status === 'pending' ? `
-                                <button class="btn btn-sm btn-success" onclick="approvePayment('${payment.id}')">Approve</button>
-                                <button class="btn btn-sm btn-danger" onclick="rejectPayment('${payment.id}')">Reject</button>
-                            ` : `
-                                <button class="btn btn-sm btn-secondary" onclick="viewPayment('${payment.id}')">View</button>
-                            `}
+                            ${payment.status === 'pending' ? 
+                                '<button class="btn btn-sm btn-success" onclick="approvePayment(\'' + payment.id + '\')">Approve</button>' +
+                                '<button class="btn btn-sm btn-danger" onclick="rejectPayment(\'' + payment.id + '\')">Reject</button>' :
+                                '<button class="btn btn-sm btn-secondary" onclick="viewPayment(\'' + payment.id + '\')">View</button>'
+                            }
                         </div>
                     </td>
                 `;
@@ -2903,119 +2983,10 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
             document.getElementById('newBalancePreview').value = `Rs. ${newBalance.toLocaleString()}`;
         }
 
-        // Event listeners for balance form
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add event listeners after DOM is loaded
-            setTimeout(() => {
-                const userSelect = document.getElementById('balanceUserId');
-                const amountInput = document.getElementById('balanceAmount');
-                
-                if (userSelect) {
-                    userSelect.addEventListener('change', function() {
-                        const selectedOption = this.options[this.selectedIndex];
-                        if (selectedOption && selectedOption.dataset.balance) {
-                            document.getElementById('currentBalance').value = `Rs. ${parseInt(selectedOption.dataset.balance).toLocaleString()}`;
-                            updateBalancePreview();
-                        }
-                    });
-                }
-                
-                if (amountInput) {
-                    amountInput.addEventListener('input', updateBalancePreview);
-                }
-            }, 1000);
-        });
+        // Balance form event listeners consolidated in main DOMContentLoaded above
 
-        // Handle balance form submission
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(() => {
-                const balanceForm = document.getElementById('addBalanceForm');
-                if (balanceForm) {
-                    balanceForm.addEventListener('submit', async function(e) {
-                        e.preventDefault();
-                        
-                        const userId = document.getElementById('balanceUserId').value;
-                        const actionType = document.getElementById('balanceActionType').value;
-                        const amount = parseFloat(document.getElementById('balanceAmount').value);
-                        const reason = document.getElementById('balanceReason').value;
-                        
-                        if (!userId || !actionType || amount < 0 || !reason) {
-                            showNotification('warning', 'Invalid Input', 'Please fill all fields correctly');
-                            return;
-                        }
-                        
-                        try {
-                            const user = players.find(p => p.id === userId);
-                            if (!user) {
-                                showNotification('error', 'User Not Found', 'The selected user could not be found.');
-                                return;
-                            }
-                            
-                            const currentBalance = user.walletBalance || 0;
-                            let newBalance = currentBalance;
-                            
-                            switch (actionType) {
-                                case 'add':
-                                    newBalance = currentBalance + amount;
-                                    break;
-                                case 'subtract':
-                                    newBalance = Math.max(0, currentBalance - amount);
-                                    break;
-                                case 'set':
-                                    newBalance = amount;
-                                    break;
-                            }
-                            
-                            // Update user balance in Firestore
-                            await db.collection('users').doc(userId).update({
-                                walletBalance: newBalance,
-                                lastBalanceUpdate: Date.now()
-                            });
-                            
-                            // Add to balance history
-                            await db.collection('balanceHistory').add({
-                                userId: userId,
-                                playerName: user.name,
-                                playerEmail: user.email,
-                                type: actionType,
-                                amount: amount,
-                                previousBalance: currentBalance,
-                                newBalance: newBalance,
-                                reason: reason,
-                                adminId: auth.currentUser.uid,
-                                adminName: auth.currentUser.displayName || auth.currentUser.email,
-                                timestamp: Date.now()
-                            });
-                            
-                            // Add activity log
-                            await addActivity(
-                                `Balance ${actionType}`,
-                                user.name,
-                                actionType === 'set' ? newBalance : amount
-                            );
-                            
-                            // Update local data
-                            user.walletBalance = newBalance;
-                            user.lastBalanceUpdate = Date.now();
-                            
-                            // Refresh displays
-                            displayBalanceUsers();
-                            await loadBalanceHistory();
-                            displayBalanceHistory();
-                            updateMetrics();
-                            
-                            closeModal('addBalanceModal');
-                            showNotification('success', 'Balance Updated', `Balance updated successfully!<br>User: ${user.name}<br>New Balance: Rs. ${newBalance.toLocaleString()}`);
-                            
-                        } catch (error) {
-                            console.error('Error updating balance:', error);
-                            showNotification('error', 'Update Failed', 'Failed to update balance. Please try again.');
-                        }
-                    });
-                }
-            }, 1000);
-        });
 
+        // Tournament Status Management Functions
         // Tournament Status Management Functions
         async function manageTournamentStatus(tournamentId) {
             console.log('Managing tournament status for:', tournamentId);
