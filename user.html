@@ -1006,29 +1006,74 @@
             
             const tournament = tournaments.find(t => t.id === currentTournamentId);
             
+            if (!tournament) {
+                alert('Tournament not found.');
+                return;
+            }
+            
             if (userData.walletBalance < tournament.entryFee) {
                 alert('Insufficient wallet balance. Please top up first.');
                 return;
             }
 
+            // Check if already registered
+            const existingRegistration = userData.registrations.find(r => r.tournamentId === currentTournamentId);
+            if (existingRegistration) {
+                alert('You are already registered for this tournament.');
+                return;
+            }
+
             try {
-                // Deduct entry fee
-                userData.walletBalance -= tournament.entryFee;
+                const newBalance = userData.walletBalance - tournament.entryFee;
+                
+                // Update user balance in Firestore
+                await db.collection('users').doc(currentUser.uid).update({
+                    walletBalance: newBalance
+                });
+                
+                // Add registration to Firestore
+                await db.collection('registrations').add({
+                    userId: currentUser.uid,
+                    tournamentId: currentTournamentId,
+                    tournamentTitle: tournament.title,
+                    playerName: userData.name,
+                    playerUID: document.getElementById('playerUID').value,
+                    entryFee: tournament.entryFee,
+                    timestamp: Date.now(),
+                    status: 'registered'
+                });
+                
+                // Update tournament player count
+                await db.collection('tournaments').doc(currentTournamentId).update({
+                    currentPlayers: (tournament.currentPlayers || 0) + 1
+                });
+                
+                // Add to activity log
+                await db.collection('activity').add({
+                    type: 'Tournament Registration',
+                    playerName: userData.name,
+                    amount: tournament.entryFee,
+                    timestamp: Date.now()
+                });
+
+                // Update local data
+                userData.walletBalance = newBalance;
                 userData.registrations.push({
                     tournamentId: currentTournamentId,
                     tournamentTitle: tournament.title,
                     entryFee: tournament.entryFee,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    status: 'registered'
                 });
-
-                // Update tournament player count
-                tournament.currentPlayers += 1;
+                tournament.currentPlayers = (tournament.currentPlayers || 0) + 1;
 
                 updateUserData();
+                loadFeaturedTournaments(); // Refresh home tournaments
+                filterTournaments('live'); // Refresh tournament list
                 closeModal('joinModal');
                 
-                // Show success message
-                alert(`Successfully joined ${tournament.title}!\nRoom ID: ${tournament.roomId}\nRoom Password: ${tournament.roomPass}`);
+                // Show success message with room details
+                alert(`Successfully joined ${tournament.title}!\n\nRoom Details:\nRoom ID: ${tournament.roomId}\nRoom Password: ${tournament.roomPass}\n\nEntry Fee: Rs. ${tournament.entryFee}\nNew Balance: Rs. ${newBalance}`);
                 
             } catch (error) {
                 console.error('Error joining tournament:', error);
@@ -1044,18 +1089,71 @@
                 return;
             }
 
-            const amount = document.getElementById('topUpAmount').value;
+            const amount = parseInt(document.getElementById('topUpAmount').value);
             const transactionId = document.getElementById('transactionId').value;
+            const screenshotFile = document.getElementById('paymentScreenshot').files[0];
+            
+            if (!screenshotFile) {
+                alert('Please upload payment screenshot');
+                return;
+            }
             
             try {
-                // Submit for admin verification
+                // Convert image to base64 for storage
+                const base64Screenshot = await fileToBase64(screenshotFile);
+                
+                // Submit payment for admin verification
+                await db.collection('payments').add({
+                    userId: currentUser.uid,
+                    playerName: userData.name,
+                    playerEmail: userData.email || currentUser.email,
+                    amount: amount,
+                    method: selectedPaymentMethod,
+                    transactionId: transactionId,
+                    screenshotUrl: base64Screenshot,
+                    screenshotName: screenshotFile.name,
+                    status: 'pending',
+                    timestamp: Date.now(),
+                    submitDate: new Date().toISOString()
+                });
+                
+                // Add to activity log
+                await db.collection('activity').add({
+                    type: 'Payment Submission',
+                    playerName: userData.name,
+                    amount: amount,
+                    timestamp: Date.now()
+                });
+                
                 alert('Payment submitted for verification. Your wallet will be updated once verified by admin.');
                 closeModal('topUpModal');
+                
+                // Reset form
+                document.getElementById('topUpForm').reset();
+                document.querySelector('.file-upload').innerHTML = `
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Click to upload screenshot</p>
+                `;
+                selectedPaymentMethod = null;
+                document.querySelectorAll('.payment-method').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                
             } catch (error) {
                 console.error('Error submitting payment:', error);
                 alert('Failed to submit payment. Please try again.');
             }
         });
+
+        // Helper function to convert file to base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
 
         document.getElementById('withdrawForm').addEventListener('submit', async function(e) {
             e.preventDefault();
