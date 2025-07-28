@@ -1298,6 +1298,7 @@
         }
 
         function showTopUpModal() {
+            resetTopUpForm(); // Reset form when opening modal
             document.getElementById('topUpModal').classList.add('active');
         }
 
@@ -1316,6 +1317,27 @@
                 el.classList.remove('selected');
             });
             event.target.closest('.payment-method').classList.add('selected');
+        }
+
+        // Reset top-up form
+        function resetTopUpForm() {
+            document.getElementById('topUpForm').reset();
+            
+            // Reset file upload display
+            const fileUpload = document.querySelector('.file-upload');
+            if (fileUpload) {
+                fileUpload.innerHTML = `
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Click to upload screenshot</p>
+                    <input type="file" id="paymentScreenshot" accept="image/*" style="display: none;">
+                `;
+            }
+            
+            // Reset payment method selection
+            selectedPaymentMethod = null;
+            document.querySelectorAll('.payment-method').forEach(el => {
+                el.classList.remove('selected');
+            });
         }
 
         function selectWithdrawMethod(method) {
@@ -1491,7 +1513,16 @@
 
             const amount = parseInt(document.getElementById('topUpAmount').value);
             const transactionId = document.getElementById('transactionId').value;
-            const screenshotFile = document.getElementById('paymentScreenshot').files[0];
+            
+            // Check if screenshot input exists
+            const screenshotInput = document.getElementById('paymentScreenshot');
+            if (!screenshotInput) {
+                console.error('Payment screenshot input not found');
+                showNotification('error', 'System Error', 'Payment form not properly loaded. Please refresh the page.');
+                return;
+            }
+            
+            const screenshotFile = screenshotInput.files[0];
             
             if (!screenshotFile) {
                 showNotification('warning', 'Screenshot Required', 'Please upload a payment screenshot for verification.');
@@ -1499,11 +1530,20 @@
             }
             
             try {
+                console.log('Starting payment submission...', {
+                    amount,
+                    transactionId,
+                    selectedPaymentMethod,
+                    screenshotName: screenshotFile.name,
+                    userId: currentUser.uid
+                });
+                
                 // Convert image to base64 for storage
                 const base64Screenshot = await fileToBase64(screenshotFile);
+                console.log('Screenshot converted to base64, size:', base64Screenshot.length);
                 
                 // Submit payment for admin verification
-                await db.collection('payments').add({
+                const paymentData = {
                     userId: currentUser.uid,
                     playerName: userData.name,
                     playerEmail: userData.email || currentUser.email,
@@ -1515,7 +1555,11 @@
                     status: 'pending',
                     timestamp: Date.now(),
                     submitDate: new Date().toISOString()
-                });
+                };
+                
+                console.log('Submitting payment data:', paymentData);
+                const docRef = await db.collection('payments').add(paymentData);
+                console.log('Payment submitted with ID:', docRef.id);
                 
                 // Add to activity log
                 await db.collection('activity').add({
@@ -1529,15 +1573,7 @@
                 closeModal('topUpModal');
                 
                 // Reset form
-                document.getElementById('topUpForm').reset();
-                document.querySelector('.file-upload').innerHTML = `
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <p>Click to upload screenshot</p>
-                `;
-                selectedPaymentMethod = null;
-                document.querySelectorAll('.payment-method').forEach(el => {
-                    el.classList.remove('selected');
-                });
+                resetTopUpForm();
                 
             } catch (error) {
                 console.error('Error submitting payment:', error);
@@ -1980,15 +2016,24 @@
             }
         });
 
-        // File upload preview
-        document.getElementById('paymentScreenshot').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const fileUpload = document.querySelector('.file-upload');
-                fileUpload.innerHTML = `
-                    <i class="fas fa-check-circle" style="color: var(--accent-blue);"></i>
-                    <p style="color: var(--accent-blue);">${file.name}</p>
-                `;
+        // File upload preview - Use event delegation to handle dynamic input
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'paymentScreenshot') {
+                console.log('File selected:', e.target.files[0]);
+                const file = e.target.files[0];
+                if (file) {
+                    const fileUpload = document.querySelector('.file-upload');
+                    if (fileUpload) {
+                        // Update only the visible content, keep the input element
+                        const currentInput = e.target;
+                        fileUpload.innerHTML = `
+                            <i class="fas fa-check-circle" style="color: var(--accent-blue);"></i>
+                            <p style="color: var(--accent-blue);">${file.name}</p>
+                        `;
+                        // Re-append the input element
+                        fileUpload.appendChild(currentInput);
+                    }
+                }
             }
         });
 
@@ -2187,6 +2232,7 @@
         window.showJoinModal = showJoinModal;
         window.showNotification = showNotification;
         window.closeNotification = closeNotification;
+        window.resetTopUpForm = resetTopUpForm;
     </script>
 
     <!-- Notification Modal -->
