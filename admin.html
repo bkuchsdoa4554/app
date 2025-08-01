@@ -1753,21 +1753,20 @@
 
             tournaments.forEach(tournament => {
                 const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${tournament.title}</td>
-                    <td>${new Date(tournament.datetime).toLocaleString()}</td>
-                    <td>Rs. ${tournament.prize?.toLocaleString() || 0}</td>
-                    <td>Rs. ${tournament.entryFee || 0}</td>
-                    <td>${tournament.currentPlayers || 0}/${tournament.maxPlayers || 0}</td>
-                    <td><span class="status-badge status-${tournament.status}">${tournament.status}</span></td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-sm btn-secondary" onclick="editTournament(&#39;${tournament.id}&#39;)">Edit</button>
-                            <button class="btn btn-sm btn-primary" onclick="manageTournamentStatus(&#39;${tournament.id}&#39;)">Manage</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteTournament(&#39;${tournament.id}&#39;)">Delete</button>
-                        </div>
-                    </td>
-                `;
+                row.innerHTML = 
+                    '<td>' + tournament.title + '</td>' +
+                    '<td>' + new Date(tournament.datetime).toLocaleString() + '</td>' +
+                    '<td>Rs. ' + (tournament.prize?.toLocaleString() || 0) + '</td>' +
+                    '<td>Rs. ' + (tournament.entryFee || 0) + '</td>' +
+                    '<td>' + (tournament.currentPlayers || 0) + '/' + (tournament.maxPlayers || 0) + '</td>' +
+                    '<td><span class="status-badge status-' + tournament.status + '">' + tournament.status + '</span></td>' +
+                    '<td>' +
+                        '<div class="action-buttons">' +
+                            '<button class="btn btn-sm btn-secondary" onclick="editTournament(\'' + tournament.id + '\')">Edit</button>' +
+                            '<button class="btn btn-sm btn-primary" onclick="manageTournamentStatus(\'' + tournament.id + '\')">Manage</button>' +
+                            '<button class="btn btn-sm btn-danger" onclick="deleteTournament(\'' + tournament.id + '\')">Delete</button>' +
+                        '</div>' +
+                    '</td>';
                 tbody.appendChild(row);
             });
         }
@@ -1858,29 +1857,28 @@
                 // Format wallet balance
                 const walletBalance = (player.walletBalance || 0).toLocaleString();
                 
-                row.innerHTML = `
-                    <td>
-                        <div class="player-info">
-                            <strong>${player.name || 'Unknown'}</strong>
-                            <small style="display: block; color: #666;">${player.email || 'No email'}</small>
-                        </div>
-                    </td>
-                    <td>${player.uid || 'N/A'}</td>
-                    <td>Rs. ${walletBalance}</td>
-                    <td>
-                        <span class="badge ${player.tournamentsJoined > 0 ? 'badge-success' : 'badge-secondary'}">
-                            ${player.tournamentsJoined || 0}
-                        </span>
-                    </td>
-                    <td>${player.referralEarnings || 0}</td>
-                    <td>${joinDateDisplay}</td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails(&#39;${player.id}&#39;)">View</button>
-                            <button class="btn btn-sm btn-warning" onclick="editUserBalance(&#39;${player.id}&#39;)">Edit Balance</button>
-                        </div>
-                    </td>
-                `;
+                row.innerHTML = 
+                    '<td>' +
+                        '<div class="player-info">' +
+                            '<strong>' + (player.name || 'Unknown') + '</strong>' +
+                            '<small style="display: block; color: #666;">' + (player.email || 'No email') + '</small>' +
+                        '</div>' +
+                    '</td>' +
+                    '<td>' + (player.uid || 'N/A') + '</td>' +
+                    '<td>Rs. ' + walletBalance + '</td>' +
+                    '<td>' +
+                        '<span class="badge ' + (player.tournamentsJoined > 0 ? 'badge-success' : 'badge-secondary') + '">' +
+                            (player.tournamentsJoined || 0) +
+                        '</span>' +
+                    '</td>' +
+                    '<td>' + (player.referralEarnings || 0) + '</td>' +
+                    '<td>' + joinDateDisplay + '</td>' +
+                    '<td>' +
+                        '<div class="action-buttons">' +
+                            '<button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails(\'' + player.id + '\')">View</button>' +
+                            '<button class="btn btn-sm btn-warning" onclick="editUserBalance(\'' + player.id + '\')">Edit Balance</button>' +
+                        '</div>' +
+                    '</td>';
                 tbody.appendChild(row);
             });
         }
@@ -1953,29 +1951,28 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                  // Format wallet balance
                  const walletBalance = (player.walletBalance || 0).toLocaleString();
                  
-                 row.innerHTML = `
-                     <td>
-                         <div class="player-info">
-                             <strong>${player.name || 'Unknown'}</strong>
-                             <small style="display: block; color: #666;">${player.email || 'No email'}</small>
-                         </div>
-                     </td>
-                     <td>${player.uid || 'N/A'}</td>
-                     <td>Rs. ${walletBalance}</td>
-                     <td>
-                         <span class="badge ${player.tournamentsJoined > 0 ? 'badge-success' : 'badge-secondary'}">
-                             ${player.tournamentsJoined || 0}
-                         </span>
-                     </td>
-                     <td>${player.referralEarnings || 0}</td>
-                     <td>${joinDateDisplay}</td>
-                     <td>
-                         <div class="action-buttons">
-                             <button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails(&#39;${player.id}&#39;)">View</button>
-                             <button class="btn btn-sm btn-warning" onclick="editUserBalance(&#39;${player.id}&#39;)">Edit Balance</button>
-                         </div>
-                     </td>
-                 `;
+                 row.innerHTML = 
+                     '<td>' +
+                         '<div class="player-info">' +
+                             '<strong>' + (player.name || 'Unknown') + '</strong>' +
+                             '<small style="display: block; color: #666;">' + (player.email || 'No email') + '</small>' +
+                         '</div>' +
+                     '</td>' +
+                     '<td>' + (player.uid || 'N/A') + '</td>' +
+                     '<td>Rs. ' + walletBalance + '</td>' +
+                     '<td>' +
+                         '<span class="badge ' + (player.tournamentsJoined > 0 ? 'badge-success' : 'badge-secondary') + '">' +
+                             (player.tournamentsJoined || 0) +
+                         '</span>' +
+                     '</td>' +
+                     '<td>' + (player.referralEarnings || 0) + '</td>' +
+                     '<td>' + joinDateDisplay + '</td>' +
+                     '<td>' +
+                         '<div class="action-buttons">' +
+                             '<button class="btn btn-sm btn-secondary" onclick="viewPlayerDetails(\'' + player.id + '\')">View</button>' +
+                             '<button class="btn btn-sm btn-warning" onclick="editUserBalance(\'' + player.id + '\')">Edit Balance</button>' +
+                         '</div>' +
+                     '</td>';
                  tbody.appendChild(row);
              });
          }
@@ -2926,19 +2923,18 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                 const lastUpdated = player.lastBalanceUpdate ? 
                     new Date(player.lastBalanceUpdate).toLocaleDateString() : 'Never';
                 
-                row.innerHTML = `
-                    <td>${player.name || 'Unknown'}</td>
-                    <td>${player.email || 'N/A'}</td>
-                    <td style="font-weight: bold; color: var(--accent-blue);">Rs. ${(player.walletBalance || 0).toLocaleString()}</td>
-                    <td>${lastUpdated}</td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-sm btn-primary" onclick="editUserBalance(&#39;${player.id}&#39;)">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                        </div>
-                    </td>
-                `;
+                row.innerHTML = 
+                    '<td>' + (player.name || 'Unknown') + '</td>' +
+                    '<td>' + (player.email || 'N/A') + '</td>' +
+                    '<td style="font-weight: bold; color: #3b82f6;">Rs. ' + ((player.walletBalance || 0).toLocaleString()) + '</td>' +
+                    '<td>' + lastUpdated + '</td>' +
+                    '<td>' +
+                        '<div class="action-buttons">' +
+                            '<button class="btn btn-sm btn-primary" onclick="editUserBalance(\'' + player.id + '\')">' +
+                                '<i class="fas fa-edit"></i> Edit' +
+                            '</button>' +
+                        '</div>' +
+                    '</td>';
                 tbody.appendChild(row);
             });
         }
@@ -2962,7 +2958,7 @@ Join Date: ${player.joinDate ? new Date(player.joinDate).toLocaleString() : 'N/A
                             ${entry.type.toUpperCase()}
                         </span>
                     </td>
-                    <td style="color: ${entry.type === 'add' ? 'var(--accent-green)' : entry.type === 'subtract' ? 'var(--accent-red)' : 'var(--accent-blue)'};">
+                    <td style="color: ${entry.type === 'add' ? '#10b981' : entry.type === 'subtract' ? '#ef4444' : '#3b82f6'};">
                         ${entry.type === 'add' ? '+' : entry.type === 'subtract' ? '-' : ''}Rs. ${entry.amount.toLocaleString()}
                     </td>
                     <td style="font-weight: bold;">Rs. ${entry.newBalance.toLocaleString()}</td>
